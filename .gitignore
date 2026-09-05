@@ -1,7 +1,7 @@
 # Environment variables & Secrets (CRITICAL SECURITY)
-.env
-.env.*
-*.env
+**/.env
+**/.env.*
+**/*.env
 *.pem
 *.key
 credentials

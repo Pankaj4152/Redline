@@ -5,18 +5,18 @@ from app.api import api_router
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Redline - AI-Powered Pre-Flight Testing & Red-Teaming Tool for AI-Native Coding Assessments",
-    version="0.1.0",
+    description=settings.APP_DESCRIPTION,
+    version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# Enable CORS for local frontend communication
+# Secure CORS Middleware using explicit allowed origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
