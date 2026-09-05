@@ -65,4 +65,6 @@ export interface FullAssessmentResult {
   report: SignalHealthReport;
   simulations: SimulationProfileResult[];
   recommendations: TaskRecommendation;
+  is_fallback?: boolean;
+  fallback_reason?: string;
 }

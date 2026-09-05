@@ -1,5 +1,8 @@
 import json
+import logging
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.schemas import (
     RepoContextSummary,
     TaskImpactResult,
@@ -118,7 +121,8 @@ Simulate the 3 candidate profiles and return a JSON list of 3 SimulationProfileR
             elif isinstance(data, dict) and "simulations" in data:
                 return [SimulationProfileResult.model_validate(item) for item in data["simulations"]]
             return self.generate_mock_simulations(summary, impact, task_description)
-        except Exception:
+        except Exception as e:
+            logger.exception("Gemini API call failed in StrategySimulatorService; returning heuristic mock simulations.")
             return self.generate_mock_simulations(summary, impact, task_description)
 
 

@@ -1,4 +1,5 @@
 import uuid
+from app.core.config import settings
 from app.models.schemas import AnalysisRequest, FullAssessmentResult
 from app.services.repo_analyzer import repo_analyzer_service
 from app.services.task_impact import task_impact_service
@@ -56,6 +57,10 @@ class AnalysisOrchestratorService:
             task_description=request.task_description
         )
 
+        # Check if fallback/mock engine was used
+        is_fallback = settings.USE_MOCK_LLM or "Fallback due to API error" in task_impact.summary
+        fallback_reason = "Executed with mock heuristics (USE_MOCK_LLM=True or upstream API error)" if is_fallback else None
+
         # Assemble & Return Complete Result Data Model
         return FullAssessmentResult(
             job_id=job_id,
@@ -63,7 +68,9 @@ class AnalysisOrchestratorService:
             repo_summary=repo_summary,
             report=signal_report,
             simulations=simulations,
-            recommendations=recommendation
+            recommendations=recommendation,
+            is_fallback=is_fallback,
+            fallback_reason=fallback_reason
         )
 
 

@@ -1,5 +1,8 @@
 import json
+import logging
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.schemas import RepoContextSummary, TaskImpactResult, LevelEnum
 from app.services.context_budgeter import context_budget_service
 
@@ -100,7 +103,7 @@ Map the task against the repository data above and return the TaskImpactResult J
             return TaskImpactResult.model_validate(data)
 
         except Exception as e:
-            # Fallback to mock impact on API error to keep pipeline resilient
+            logger.exception("Gemini API call failed in TaskImpactService; returning heuristic mock fallback.")
             mock_result = self.generate_mock_impact(summary, task_description)
             mock_result.summary += f" (Fallback due to API error: {str(e)})"
             return mock_result

@@ -1,5 +1,8 @@
 import json
+import logging
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.schemas import (
     RepoContextSummary,
     TaskImpactResult,
@@ -154,7 +157,8 @@ Evaluate the 5 signal dimensions and return the SignalHealthReport JSON object.
             )
             data = json.loads(response.text)
             return SignalHealthReport.model_validate(data)
-        except Exception:
+        except Exception as e:
+            logger.exception("Gemini API call failed in SignalEvaluationService; returning heuristic mock evaluation.")
             return self.generate_mock_evaluation(summary, impact, simulations, task_description)
 
 

@@ -1,5 +1,8 @@
 import json
+import logging
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.schemas import (
     RepoContextSummary,
     TaskImpactResult,
@@ -117,7 +120,8 @@ Formulate an upgraded task description with rationale and return the TaskRecomme
             )
             data = json.loads(response.text)
             return TaskRecommendation.model_validate(data)
-        except Exception:
+        except Exception as e:
+            logger.exception("Gemini API call failed in UpgradeGeneratorService; returning heuristic mock upgrade recommendation.")
             return self.generate_mock_upgrade(summary, impact, simulations, report, task_description)
 
 

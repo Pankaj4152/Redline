@@ -201,3 +201,5 @@ class FullAssessmentResult(BaseModel):
     report: SignalHealthReport
     simulations: list[SimulationProfileResult]
     recommendations: TaskRecommendation
+    is_fallback: bool = False
+    fallback_reason: str | None = None
