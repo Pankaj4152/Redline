@@ -172,3 +172,29 @@ Redline evaluates whether a task exposes true engineering signal by comparing ho
 ### What I Should Know
 - Qualitative evidence linkage ensures Redline never presents arbitrary numbers without explicit repository-backed reasoning.
 - Weighted health scoring indexes enable Redline to classify tasks as `Weak Signal - Highly AI-Delegable` vs `Strong Signal - High Architectural Judgment Demanded`.
+
+---
+
+## Step 4.2 — Assessment Recommendation & Task Upgrade Generator
+
+### Concept
+Constraint Elevation & Actionable Task Red-Teaming Rationale.
+
+### Why Redline Uses It
+Redline not only diagnoses weak-signal assessments, but provides concrete, repository-specific task upgrades that elevate engineering depth without inflating overall task duration.
+
+### How It Works in Our Project
+1. **`TaskRecommendation`**: Pydantic schema holding `original_task`, `upgraded_task`, `rationale`, and `added_constraints`.
+2. **`UpgradeGeneratorService`**:
+   - Inspects `TaskImpactResult` and `SignalHealthReport`.
+   - Injects targeted architectural constraints (e.g. streaming RAM limits, custom middleware integration, explicit error contracts) into weak tasks.
+   - Provides clear qualitative rationale explaining how the constraint mitigates AI delegation risks.
+
+### Important Engineering Decisions
+- **Decision**: Inject targeted architectural constraints (streaming bounds, middleware integration) rather than increasing feature scope.
+- **Why**: Adding features makes assessments take hours longer without improving signal. Adding constraints forces deep architectural reasoning while keeping completion time short (<90 min).
+- **Alternative**: Asking candidates to build larger multi-page applications.
+- **Tradeoff**: Requires precise prompt engineering to keep constraints relevant to existing repository interfaces, but maintains optimal assessment duration.
+
+### What I Should Know
+- Red-teaming an assessment task is about finding non-obvious failure modes (e.g., RAM limits or custom middleware) and making them mandatory task constraints.
