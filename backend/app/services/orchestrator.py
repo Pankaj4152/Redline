@@ -57,6 +57,10 @@ class AnalysisOrchestratorService:
             task_description=request.task_description
         )
 
+        # Check for artificial complexity warning in report verdict
+        is_artificially_complex = "Artificial Complexity" in signal_report.verdict
+        complexity_reason = signal_report.reasoning_signal.contributing_evidence[0] if is_artificially_complex else None
+
         # Check if fallback/mock engine was used
         is_fallback = settings.USE_MOCK_LLM or "Fallback due to API error" in task_impact.summary
         fallback_reason = "Executed with mock heuristics (USE_MOCK_LLM=True or upstream API error)" if is_fallback else None
@@ -69,6 +73,9 @@ class AnalysisOrchestratorService:
             report=signal_report,
             simulations=simulations,
             recommendations=recommendation,
+            evidence_grounding=task_impact.grounding_chain,
+            artificial_complexity_flag=is_artificially_complex,
+            complexity_rationale=complexity_reason,
             is_fallback=is_fallback,
             fallback_reason=fallback_reason
         )

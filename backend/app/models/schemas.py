@@ -112,6 +112,18 @@ class RepoSymbol(BaseModel):
     file_path: str
 
 
+class RepositoryFactMatrix(BaseModel):
+    """Empirical facts extracted statically from repository code structure."""
+    observed_abstractions: list[str] = Field(
+        default_factory=list,
+        description="Active code patterns and architectural abstractions found in repo"
+    )
+    absent_abstractions: list[str] = Field(
+        default_factory=list,
+        description="Explicitly missing abstractions (do NOT hallucinate as recommendations)"
+    )
+
+
 class RepoContextSummary(BaseModel):
     """Sanitized repository context outline prepared for LLM prompts."""
     repo_name: str
@@ -119,6 +131,16 @@ class RepoContextSummary(BaseModel):
     file_tree: list[str]
     detected_routes: list[str] = Field(default_factory=list)
     key_symbols: list[RepoSymbol] = Field(default_factory=list)
+    fact_matrix: RepositoryFactMatrix = Field(default_factory=RepositoryFactMatrix)
+
+
+class EvidenceGroundingChain(BaseModel):
+    """Traceable chain linking empirical repository facts to recommendation decisions."""
+    repo_facts: list[str] = Field(default_factory=list, description="Empirical code patterns observed in repository")
+    task_implications: list[str] = Field(default_factory=list, description="What the task requires candidate to understand")
+    allowed_upgrades: list[str] = Field(default_factory=list, description="Upgrades backed strictly by existing repo conventions")
+    forbidden_upgrades: list[str] = Field(default_factory=list, description="Unsupported assumptions forbidden from recommendation")
+    confidence_rating: str = Field(default="High", description="Confidence in evidence grounding (e.g. High, Medium)")
 
 
 class TaskImpactResult(BaseModel):
@@ -129,6 +151,7 @@ class TaskImpactResult(BaseModel):
     cross_module_dependencies: list[str] = Field(default_factory=list)
     potential_side_effects: list[str] = Field(default_factory=list)
     summary: str
+    grounding_chain: EvidenceGroundingChain | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +196,8 @@ class SimulationProfileResult(BaseModel):
     reasoning_summary: str
     missed_risks: list[str] = Field(default_factory=list)
     inspected_files: list[str] = Field(default_factory=list)
+    abstractions_reused: list[str] = Field(default_factory=list)
+    edge_cases_tested: list[str] = Field(default_factory=list)
 
 
 class TaskRecommendation(BaseModel):
@@ -181,6 +206,7 @@ class TaskRecommendation(BaseModel):
     upgraded_task: str
     rationale: str
     added_constraints: list[str] = Field(default_factory=list)
+    grounding_chain: EvidenceGroundingChain | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -201,5 +227,8 @@ class FullAssessmentResult(BaseModel):
     report: SignalHealthReport
     simulations: list[SimulationProfileResult]
     recommendations: TaskRecommendation
+    evidence_grounding: EvidenceGroundingChain | None = None
+    artificial_complexity_flag: bool = False
+    complexity_rationale: str | None = None
     is_fallback: bool = False
     fallback_reason: str | None = None

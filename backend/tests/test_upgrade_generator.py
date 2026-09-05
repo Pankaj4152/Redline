@@ -21,7 +21,7 @@ def test_generate_mock_upgrade_weak_task():
     
     assert isinstance(rec, TaskRecommendation)
     assert rec.original_task == task
-    assert "streams" in rec.upgraded_task or "RAM" in rec.upgraded_task
+    assert "pagination" in rec.upgraded_task or "conventions" in rec.upgraded_task
     assert len(rec.added_constraints) > 0
     assert rec.rationale != ""
 

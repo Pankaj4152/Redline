@@ -42,19 +42,23 @@ class UpgradeGeneratorService:
         """
         is_weak_signal = report.overall_health_score < 65
         
+        # Extract grounding chain from task impact
+        grounding = impact.grounding_chain if impact.grounding_chain else None
+
         if is_weak_signal:
             upgraded = (
-                f"{task_description.strip()} Ensure the implementation streams response data to stay under "
-                f"50MB RAM usage and preserves existing custom API rate-limiting middleware contracts."
+                f"{task_description.strip()} Implement the search feature using the repository's existing "
+                f"pagination and query filter conventions. Handle empty queries, zero search matches, and requests "
+                f"exceeding available result sets. Include automated unit tests covering these edge cases."
             )
             rationale = (
-                "Forces the candidate to inspect memory constraints and integrate with existing custom middleware "
-                "rather than pasting a generic, single-endpoint AI snippet."
+                "Forces the candidate to inspect existing repository route & model patterns rather than copying a generic "
+                "AI snippet. Grounded strictly in detected codebase abstractions without introducing unsupported constraints."
             )
             constraints = [
-                "Stream datasets exceeding 50MB RAM limit",
-                "Integrate with existing custom rate-limiting middleware",
-                "Enforce explicit error contracts for empty datasets"
+                "Reuse existing repository pagination & query filter conventions",
+                "Handle boundary cases (empty query, no matches, out-of-bound page requests)",
+                "Add automated unit tests covering boundary failure modes"
             ]
         else:
             upgraded = (
@@ -62,11 +66,11 @@ class UpgradeGeneratorService:
                 f"and verify edge-case exception handling contracts."
             )
             rationale = (
-                "The task already demands strong architectural judgment. Adding explicit verification requirements "
+                "The task already demands architectural judgment. Adding explicit boundary verification "
                 "prevents candidates from submitting happy-path implementations."
             )
             constraints = [
-                "Add unit tests for non-obvious failure modes",
+                "Add unit tests for non-obvious boundary failure modes",
                 "Verify edge-case exception handling contracts"
             ]
 
@@ -74,7 +78,8 @@ class UpgradeGeneratorService:
             original_task=task_description.strip(),
             upgraded_task=upgraded,
             rationale=rationale,
-            added_constraints=constraints
+            added_constraints=constraints,
+            grounding_chain=grounding
         )
 
     def generate_task_upgrade(

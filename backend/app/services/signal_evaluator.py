@@ -98,14 +98,41 @@ class SignalEvaluationService:
             verif_score * 0.15
         )
 
-        verdict = (
-            "Strong Signal - High Architectural Judgment Demanded" if overall_health >= 65
-            else "Moderate Signal - Partial AI Delegation Risk" if overall_health >= 45
-            else "Weak Signal - Highly AI-Delegable"
-        )
+        # Check for Artificial Complexity (ungrounded requirements)
+        task_lower = task_description.lower()
+        absent_list = summary.fact_matrix.absent_abstractions if summary.fact_matrix else []
+        ungrounded_matches = []
+        for a in absent_list:
+            keyword = a.replace("NO ", "").split("(")[0].strip().lower()
+            if any(w in task_lower for w in ["redis", "elasticsearch", "lock", "stream", "rate-limit", "vector"]):
+                if any(w in keyword for w in ["redis", "search", "lock", "stream", "rate"]):
+                    ungrounded_matches.append(a)
+
+        is_artificially_complex = len(ungrounded_matches) >= 2
+
+        if is_artificially_complex:
+            overall_score = 45
+            verdict = "Artificial Complexity Warning - Ungrounded Architectural Bloat"
+            reasoning_evidence = [
+                f"Task introduces ungrounded constraints not supported by repo: {', '.join(ungrounded_matches)}",
+                "High implementation bloat without proportional increase in true engineering signal."
+            ]
+        elif is_high_depth:
+            overall_score = 72
+            verdict = "Strong Signal - High Engineering Judgment Required"
+            reasoning_evidence = [
+                "Demands repository-grounded pagination and error contract verification.",
+                "Requires candidate to reuse existing repository conventions."
+            ]
+        else:
+            overall_score = 30
+            verdict = "Weak Signal - Highly AI-Delegable"
+            reasoning_evidence = [
+                "Task requires minimal cross-module reasoning or failure mode validation."
+            ]
 
         return SignalHealthReport(
-            overall_health_score=overall_health,
+            overall_health_score=overall_score,
             verdict=verdict,
             ai_solvability=MetricScore(score=ai_solvability_score, level=ai_solvability_level, contributing_evidence=ai_solvability_evidence),
             reasoning_signal=MetricScore(score=reasoning_score, level=reasoning_level, contributing_evidence=reasoning_evidence),

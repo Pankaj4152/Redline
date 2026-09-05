@@ -70,6 +70,35 @@ export const CandidateSimulations: React.FC<CandidateSimulationsProps> = ({ simu
                   </div>
                 </div>
               )}
+              {/* Reused Abstractions */}
+              {sim.abstractions_reused && sim.abstractions_reused.length > 0 && (
+                <div style={{ marginBottom: '0.85rem' }}>
+                  <div style={{ fontSize: '0.725rem', fontWeight: 600, color: 'var(--accent-emerald)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                    Reused Code Conventions:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    {sim.abstractions_reused.map((abs, aIdx) => (
+                      <span key={aIdx} style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '3px', color: 'var(--accent-emerald)' }}>
+                        {abs}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Edge Cases Tested */}
+              {sim.edge_cases_tested && sim.edge_cases_tested.length > 0 && (
+                <div style={{ marginBottom: '0.85rem' }}>
+                  <div style={{ fontSize: '0.725rem', fontWeight: 600, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                    Edge-Case Verification:
+                  </div>
+                  <ul style={{ paddingLeft: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    {sim.edge_cases_tested.map((test, tIdx) => (
+                      <li key={tIdx}>{test}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Missed Risks & Likelihood */}
@@ -80,10 +109,10 @@ export const CandidateSimulations: React.FC<CandidateSimulationsProps> = ({ simu
               </div>
               {sim.missed_risks.length === 0 ? (
                 <span style={{ fontSize: '0.78rem', color: 'var(--accent-emerald)', fontWeight: 500 }}>
-                  ✓ None detected (Exposes engineering judgment)
+                  ✓ High-level trade-offs evaluated
                 </span>
               ) : (
-                <ul style={{ paddingLeft: '1rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <ul style={{ paddingLeft: '1rem', fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
                   {sim.missed_risks.map((risk, rIdx) => (
                     <li key={rIdx}>{risk}</li>
                   ))}

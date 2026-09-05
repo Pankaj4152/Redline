@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Header } from './components/Header';
 import { AssessmentForm } from './components/AssessmentForm';
+import { EvidenceGroundingCard } from './components/EvidenceGroundingCard';
 import { HealthScoreCard } from './components/HealthScoreCard';
 import { CandidateSimulations } from './components/CandidateSimulations';
 import { TaskUpgradeCard } from './components/TaskUpgradeCard';
@@ -95,7 +96,15 @@ export function App() {
         {/* Results Dashboard */}
         {result && !isLoading && (
           <div>
-            {/* 1. Diagnostic Health Score Card */}
+            {/* 1. Repository Evidence & Grounding Matrix */}
+            <EvidenceGroundingCard
+              groundingChain={result.evidence_grounding}
+              factMatrix={result.repo_summary?.fact_matrix}
+              artificialComplexityFlag={result.artificial_complexity_flag}
+              complexityRationale={result.complexity_rationale}
+            />
+
+            {/* 2. Diagnostic Health Score Card */}
             <HealthScoreCard report={result.report} disclaimer={result.diagnostic_disclaimer} />
 
             {/* 2. Candidate Strategy Profile Simulations */}

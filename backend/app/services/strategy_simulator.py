@@ -48,9 +48,11 @@ class StrategySimulatorService:
             profile=CandidateProfileEnum.AI_DEPENDENT,
             success_likelihood=LevelEnum.MEDIUM if is_high_depth else LevelEnum.HIGH,
             estimated_delegation="90%",
-            reasoning_summary="Delegates entire task to broad natural-language AI prompts without inspecting repository abstractions or existing middleware.",
-            missed_risks=impact.potential_side_effects or ["Ignores memory limits on large inputs", "Bypasses error contracts"],
-            inspected_files=touched[:1]
+            reasoning_summary="Delegates entire task to raw LLM prompt. Copies generated snippet without inspecting existing repo models or conventions.",
+            missed_risks=impact.potential_side_effects or ["Ignores existing pagination contracts", "Bypasses error response formats"],
+            inspected_files=touched[:1],
+            abstractions_reused=[],
+            edge_cases_tested=["None (relies purely on default AI output)"]
         )
 
         # Profile 2: Naive AI-Assisted Engineer
@@ -58,9 +60,11 @@ class StrategySimulatorService:
             profile=CandidateProfileEnum.NAIVE_AI_ASSISTED,
             success_likelihood=LevelEnum.HIGH,
             estimated_delegation="70%",
-            reasoning_summary="Uses AI for quick implementations, performs superficial happy-path HTTP 200 checks, but misses cross-module side effects.",
-            missed_risks=["Missing error handling for non-standard input data"],
-            inspected_files=touched[:2]
+            reasoning_summary="Uses AI for speed, checks happy-path HTTP 200 response, but misses non-obvious boundary failure modes.",
+            missed_risks=["Misses boundary-case handling for empty/invalid parameters"],
+            inspected_files=touched[:2],
+            abstractions_reused=["HTTP Route Handler"],
+            edge_cases_tested=["Happy-path HTTP 200 OK"]
         )
 
         # Profile 3: Strong AI-Native Engineer
@@ -68,9 +72,11 @@ class StrategySimulatorService:
             profile=CandidateProfileEnum.STRONG_AI_NATIVE,
             success_likelihood=LevelEnum.HIGH,
             estimated_delegation="40%",
-            reasoning_summary="Inspects repository interfaces, maps cross-module dependencies, uses targeted AI prompts for isolated logic, and tests edge cases.",
-            missed_risks=[],
-            inspected_files=touched
+            reasoning_summary="Inspects route + model + CRUD layers, reuses existing repository conventions, and explicitly writes edge-case tests.",
+            missed_risks=["Potential minor performance overhead under heavy concurrency"],
+            inspected_files=touched,
+            abstractions_reused=["Pydantic Schemas", "Existing Pagination Conventions", "Repository CRUD Abstraction"],
+            edge_cases_tested=["Empty query string", "No matching search results", "Requests exceeding total result set"]
         )
 
         return [ai_dependent, naive_assisted, strong_native]

@@ -3,15 +3,16 @@ import logging
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-from app.models.schemas import RepoContextSummary, TaskImpactResult, LevelEnum
+from app.models.schemas import RepoContextSummary, TaskImpactResult, LevelEnum, EvidenceGroundingChain
 from app.services.context_budgeter import context_budget_service
 
 SYSTEM_IMPACT_PROMPT = """
 You are an expert Software Architecture & Red-Teaming AI Assessor.
-Your task is to analyze a proposed candidate coding assessment task against a software repository outline.
+Your task is to analyze a proposed candidate coding assessment task against a repository outline and Fact Matrix.
 
 Target Analysis Goal:
-Determine which files and modules in the repository will be touched by the task, any cross-module dependencies, potential unvalidated side effects, and the overall architectural depth required to complete the task.
+Determine which files in the repository will be touched by the task, existing code conventions required, and allowed vs forbidden upgrades strictly grounded in the Fact Matrix.
+Do NOT recommend any abstractions listed in absent_abstractions.
 
 Output Format:
 Return a JSON object adhering strictly to the TaskImpactResult schema.
@@ -55,13 +56,33 @@ class TaskImpactService:
             cross_deps = ["HTTP Route Handler"]
             side_effects = ["Modifies localized route handler without touching database or abstractions"]
 
+        obs = summary.fact_matrix.observed_abstractions if summary.fact_matrix else ["HTTP Endpoint Routing", "Pydantic Schemas"]
+        absent = summary.fact_matrix.absent_abstractions if summary.fact_matrix else ["NO Response Data Streaming", "NO API Rate-Limiting Middleware"]
+
+        grounding_chain = EvidenceGroundingChain(
+            repo_facts=obs,
+            task_implications=[
+                f"Candidate must understand existing route structure ({', '.join(impacted_files[:2]) or 'main.py'})",
+                "Task evaluation is constrained to observed repository abstractions"
+            ],
+            allowed_upgrades=[
+                "Require pagination and query filter consistency with existing endpoints",
+                "Add boundary-case tests covering empty result sets and invalid parameters"
+            ],
+            forbidden_upgrades=[
+                f"Do NOT recommend: {', '.join(absent[:2])} (Neither abstraction exists in repository)"
+            ],
+            confidence_rating="High"
+        )
+
         return TaskImpactResult(
             impacted_files=impacted_files[:5],
             impacted_modules=impacted_modules,
             architectural_depth_required=depth,
             cross_module_dependencies=cross_deps,
             potential_side_effects=side_effects,
-            summary=f"Task touches {len(impacted_files)} file(s) across modules {impacted_modules}. Requires {depth.value} architectural depth."
+            summary=f"Task touches {len(impacted_files)} file(s) across modules {impacted_modules}. Requires {depth.value} architectural depth.",
+            grounding_chain=grounding_chain
         )
 
     def analyze_task_impact(self, summary: RepoContextSummary, task_description: str) -> TaskImpactResult:

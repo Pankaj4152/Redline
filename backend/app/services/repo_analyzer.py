@@ -6,7 +6,7 @@ import tempfile
 import subprocess
 from pathlib import Path
 from app.core.config import settings
-from app.models.schemas import RepoContextSummary, RepoSymbol
+from app.models.schemas import RepoContextSummary, RepoSymbol, RepositoryFactMatrix
 
 # Allowed file extensions for static analysis
 WHITELISTED_EXTENSIONS = {
@@ -261,12 +261,48 @@ class RepoAnalyzerService:
                         # Skip unreadable or broken files without failing pipeline
                         continue
 
+            # Static Fact Matrix Compilation
+            observed_facts: list[str] = []
+            absent_facts: list[str] = []
+
+            all_content_str = " ".join([s.name for s in key_symbols] + detected_routes + file_tree).lower()
+
+            # Detect observed code abstractions
+            if any(r for r in detected_routes if "GET" in r or "POST" in r):
+                observed_facts.append("HTTP Endpoint Routing (FastAPI / Express)")
+            if any(s for s in key_symbols if "model" in s.name.lower() or s.symbol_type in {"class", "interface"}):
+                observed_facts.append("Structured Data Schemas (Pydantic / SQLModel / TS Interfaces)")
+            if any("test" in f for f in file_tree):
+                observed_facts.append("Automated Test Suite (Pytest / Vitest)")
+            if "page" in all_content_str or "limit" in all_content_str or "offset" in all_content_str:
+                observed_facts.append("Offset/Limit Pagination Conventions")
+            else:
+                observed_facts.append("Standard List Endpoint Retrieval")
+
+            # Detect absent abstractions (negative constraints)
+            if "streamingresponse" not in all_content_str and "stream" not in all_content_str:
+                absent_facts.append("NO Response Data Streaming Abstraction")
+            if "ratelimit" not in all_content_str and "limiter" not in all_content_str:
+                absent_facts.append("NO Custom API Rate-Limiting Middleware")
+            if "redis" not in all_content_str and "cache" not in all_content_str:
+                absent_facts.append("NO Redis / Caching Layer")
+            if "elasticsearch" not in all_content_str and "vector" not in all_content_str:
+                absent_facts.append("NO External Search Engine (Elasticsearch / Vector DB)")
+            if "lock" not in all_content_str and "celery" not in all_content_str:
+                absent_facts.append("NO Distributed Locks / Background Workers")
+
+            fact_matrix = RepositoryFactMatrix(
+                observed_abstractions=observed_facts,
+                absent_abstractions=absent_facts
+            )
+
             return RepoContextSummary(
                 repo_name=repo_name,
                 total_files=total_files,
-                file_tree=file_tree[:100],  # Truncate tree list for context summary cap
-                detected_routes=detected_routes,
-                key_symbols=key_symbols[:50]  # Cap top symbols
+                file_tree=file_tree[:100],  # Truncate tree for budget safety
+                detected_routes=detected_routes[:30],
+                key_symbols=key_symbols[:50],
+                fact_matrix=fact_matrix
             )
         finally:
             # Clean up cloned temp directory if requested and if it was cloned into scratch
