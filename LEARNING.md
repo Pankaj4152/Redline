@@ -254,3 +254,30 @@ A visual web dashboard transforms raw backend JSON outputs into an intuitive, ev
 ### What I Should Know
 - CSS Custom Properties (`var(--...)`) enable flexible theme variables without runtime CSS-in-JS overhead.
 - Interactive evidence accordions allow users to drill down into the qualitative evidence backing each score.
+
+---
+
+## Code Review Resolutions — Security, Reliability & AST Enhancements
+
+### Concept
+Security Remediation, Fallback Observability, and Robust AST Parsing.
+
+### Why Redline Needed It
+An independent code review identified two critical security vulnerabilities (Path Traversal and Git Parameter Injection), hardcoded frontend API URLs, unlogged Gemini exception swallowing, and regex AST limitations for TypeScript codebases.
+
+### How It Works in Our Project
+1. **Sandbox Canonical Path Validation & Git Option Separator (`--`)**:
+   - `AnalysisRequest` and `RepoAnalyzerService` enforce `os.path.commonpath` checks against workspace/temp directories using Windows-safe `is_subpath` helpers.
+   - `subprocess.run(["git", "clone", "--depth", "1", "--branch", branch, "--", repo_url, target_dir])` uses `--` to prevent CLI flag injection (e.g. `--config=...`).
+2. **Frontend Dynamic Environment Lookup**:
+   - `App.tsx` reads `import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'` with typed declarations in `src/vite-env.d.ts` and template in `.env.example`.
+3. **Structured Logging & Fallback Observability**:
+   - Switched from bare `except Exception:` to `logger.exception()` across all 4 LLM services (`task_impact`, `strategy_simulator`, `signal_evaluator`, `upgrade_generator`).
+   - Added `is_fallback` and `fallback_reason` metadata to `FullAssessmentResult`.
+4. **Enhanced JS/TS AST Regex Extraction**:
+   - Expanded regex patterns to extract TypeScript `interface`, `type` aliases, `export default class/function`, and generic class syntax.
+
+### Key Learnings
+- **CLI Parameter Injection**: Always separate flags from positional CLI arguments using `--`.
+- **Path Traversal Containment**: Canonicalize paths (`os.path.realpath`) and verify parent directory membership, accounting for Windows drive letters.
+- **Fallback Observability**: Never catch and swallow exceptions silently without logging full tracebacks and flagging degraded execution modes in API responses.
