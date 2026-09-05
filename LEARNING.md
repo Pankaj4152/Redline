@@ -45,3 +45,28 @@ Redline needs a high-performance backend server capable of handling multiple con
 - **Why It Is Wrong**: Fake string fallbacks bypass Pydantic's missing-variable check and defer failures until deep inside LLM API call execution (causing confusing 401/403 runtime errors).
 - **Engineering Fix**: Validate missing keys at startup and introduce an explicit `USE_MOCK_LLM: bool = True` configuration flag for offline dev and testing.
 - **Key Takeaway**: **Fail-Fast Configuration**. Missing or invalid production dependencies should cause immediate server startup failure rather than delayed runtime crashes.
+
+---
+
+## Step 1.2 — Pydantic Data Contracts & Schemas
+
+### Concept
+Strict Input Validation & LLM Structured Output Guarantees.
+
+### Why Redline Uses It
+LLM outputs are inherently probabilistic and dynamic. Without a formal data contract, downstream components risk throwing `KeyError` or `AttributeError` exceptions when consuming LLM responses. Pydantic models define an explicit boundary for input URL validation and output report schemas.
+
+### How It Works in Our Project
+1. **`AnalysisRequest`**: Validates incoming HTTP POST requests, enforcing GitHub URL pattern matching (`https://github.com/org/repo`) and task description length boundaries.
+2. **`MetricScore`**: Enforces transparent evidence linkage by mandating a non-empty `contributing_evidence: list[str]` array for every qualitative score.
+3. **`FullAssessmentResult`**: Defines the unified JSON payload returned to frontend clients, aggregating candidate simulation results, metric scores, and task recommendations.
+
+### Important Engineering Decisions
+- **Decision**: Use Pydantic v2 `@field_validator` regex validation for repository URLs.
+- **Why**: Prevents SSRF (Server-Side Request Forgery) and invalid URL parameters from entering git clone pipelines.
+- **Alternative**: Unvalidated string inputs or simple `str.startswith("http")` checks.
+- **Tradeoff**: Regex validation must explicitly permit local path prefixes (e.g. `./` or absolute paths) to support offline development testing.
+
+### What I Should Know
+- Pydantic models serve a dual purpose in Redline: **API payload validation** for HTTP handlers AND **structured output schemas** for Gemini API calls.
+- Enforcing `min_length=1` on `contributing_evidence` directly bakes Redline's core product principle (*no arbitrary scores without qualitative evidence*) into our software architecture.
