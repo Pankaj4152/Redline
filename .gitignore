@@ -21,6 +21,12 @@ env/
 .venv/
 ENV/
 
+# Node / Frontend Build Artifacts
+**/node_modules/
+**/dist/
+.vite/
+npm-debug.log*
+
 # Temporary storage & scratch directories
 /tmp/
 backend/scratch/
