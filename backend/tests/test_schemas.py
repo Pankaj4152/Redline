@@ -1,3 +1,5 @@
+import os
+import tempfile
 import pytest
 from pydantic import ValidationError
 from app.models.schemas import (
@@ -82,3 +84,22 @@ def test_full_assessment_result_serialization():
     assert data["job_id"] == "job_123"
     assert "heuristic design diagnostic" in data["diagnostic_disclaimer"]
     assert data["simulations"][0]["profile"] == "AI-Dependent Engineer"
+
+def test_branch_option_injection_rejection():
+    with pytest.raises(ValidationError) as excinfo:
+        AnalysisRequest(
+            repo_url="https://github.com/fastapi/fastapi",
+            branch="--config=core.sshCommand=calc.exe",
+            task_description="Add a new OAuth2 middleware endpoint."
+        )
+    assert "Branch name cannot start with a hyphen" in str(excinfo.value)
+
+def test_path_traversal_local_path_rejection():
+    # Use parent directory of temp dir which exists but is outside application workspace
+    outside_dir = os.path.realpath(os.path.join(tempfile.gettempdir(), ".."))
+    with pytest.raises(ValidationError) as excinfo:
+        AnalysisRequest(
+            repo_url=outside_dir,
+            task_description="Add a new OAuth2 middleware endpoint."
+        )
+    assert "must reside within the application workspace" in str(excinfo.value)

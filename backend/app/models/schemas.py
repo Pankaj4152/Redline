@@ -1,4 +1,6 @@
+import os
 import re
+import tempfile
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 
@@ -44,13 +46,44 @@ class AnalysisRequest(BaseModel):
         description="The candidate assessment task prompt to red-team"
     )
 
+    @field_validator("branch")
+    @classmethod
+    def validate_branch(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            return "main"
+        if v.startswith("-"):
+            raise ValueError("Branch name cannot start with a hyphen '-'")
+        branch_pattern = r"^[a-zA-Z0-9_./-]+$"
+        if not re.match(branch_pattern, v):
+            raise ValueError("Invalid branch name format")
+        return v
+
     @field_validator("repo_url")
     @classmethod
     def validate_repo_url(cls, v: str) -> str:
         v = v.strip()
-        # Allow local folder paths for local dev testing
-        if v.startswith(".") or v.startswith("/") or "://" not in v:
-            return v
+        # Handle local directory paths safely
+        if v.startswith(".") or v.startswith("/") or "://" not in v or (len(v) > 1 and v[1] == ":"):
+            resolved = os.path.realpath(v)
+            if not os.path.exists(resolved):
+                raise ValueError(f"Local directory path does not exist: {v}")
+            # Ensure local path is contained within the workspace/backend directory
+            backend_root = os.path.realpath(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+            workspace_root = os.path.realpath(os.path.join(backend_root, ".."))
+            
+            # Check if canonical path resides within workspace_root or tempdir
+            def is_subpath(child: str, parent: str) -> bool:
+                try:
+                    p = os.path.realpath(parent)
+                    c = os.path.realpath(child)
+                    return os.path.commonpath([c, p]) == p
+                except ValueError:
+                    return False
+
+            if not (is_subpath(resolved, workspace_root) or is_subpath(resolved, tempfile.gettempdir())):
+                raise ValueError("Local directory path must reside within the application workspace or temporary directory.")
+            return resolved
         
         # Regex for HTTPS GitHub repository URLs
         github_pattern = r"^https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+(?:\.git)?$"

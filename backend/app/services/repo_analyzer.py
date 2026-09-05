@@ -75,6 +75,17 @@ class RepoAnalyzerService:
         # If repo_url is a local path
         if os.path.exists(repo_url):
             real_path = os.path.realpath(repo_url)
+            backend_root = os.path.realpath(settings.BACKEND_DIR)
+            workspace_root = os.path.realpath(os.path.join(backend_root, ".."))
+            def is_subpath(child: str, parent: str) -> bool:
+                try:
+                    p = os.path.realpath(parent)
+                    c = os.path.realpath(child)
+                    return os.path.commonpath([c, p]) == p
+                except ValueError:
+                    return False
+            if not (is_subpath(real_path, workspace_root) or is_subpath(real_path, tempfile.gettempdir())):
+                raise ValueError(f"Local path traversal attempt detected outside workspace: {repo_url}")
             return real_path
 
         # Create temporary working directory if target_dir not provided
@@ -87,8 +98,8 @@ class RepoAnalyzerService:
         if not is_safe_path(settings.BACKEND_DIR, target_dir) and not target_dir.startswith(tempfile.gettempdir()):
             raise ValueError(f"Target directory path traversal detected: {target_dir}")
 
-        # Execute git clone securely (shell=False prevents command injection)
-        cmd = ["git", "clone", "--depth", "1", "--branch", branch, repo_url, target_dir]
+        # Execute git clone securely (shell=False prevents command injection, '--' prevents flag injection)
+        cmd = ["git", "clone", "--depth", "1", "--branch", branch, "--", repo_url, target_dir]
         try:
             result = subprocess.run(
                 cmd,
