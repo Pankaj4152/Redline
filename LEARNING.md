@@ -198,3 +198,30 @@ Redline not only diagnoses weak-signal assessments, but provides concrete, repos
 
 ### What I Should Know
 - Red-teaming an assessment task is about finding non-obvious failure modes (e.g., RAM limits or custom middleware) and making them mandatory task constraints.
+
+---
+
+## Step 5.1 — REST API Integration & Async Pipeline Orchestrator
+
+### Concept
+Pipe-and-Filter Pipeline Orchestration & End-to-End REST API Layer.
+
+### Why Redline Uses It
+To turn isolated analytical micro-services into a functional web product, Redline needs a master orchestrator (`AnalysisOrchestratorService`) that chains all 6 pipeline stages together sequentially, and a REST API route (`POST /api/v1/analyze`) that accepts JSON requests and returns full report payloads.
+
+### How It Works in Our Project
+1. **`AnalysisOrchestratorService`**:
+   - Receives `AnalysisRequest`.
+   - Chains: `RepoAnalyzer` -> `ContextBudgeter` -> `TaskImpact` -> `StrategySimulator` -> `SignalEvaluator` -> `UpgradeGenerator`.
+   - Assembles and returns `FullAssessmentResult`.
+2. **`POST /api/v1/analyze`**: Route handler in `app/api/analyze.py` accepting `AnalysisRequest` and returning HTTP 200 OK with `FullAssessmentResult`.
+
+### Important Engineering Decisions
+- **Decision**: Implement a synchronous/async Pipe-and-Filter Orchestrator (`AnalysisOrchestratorService`) executing all pipeline steps sequentially per HTTP request.
+- **Why**: Keeps architecture clean, latency under 3 seconds in mock mode, and eliminates external background worker queue infrastructure (Celery/Redis) for the MVP proof-of-concept.
+- **Alternative**: Asynchronous background workers (Celery/Redis) with polling endpoints (`GET /job/{id}`).
+- **Tradeoff**: Simplifies deployment and infrastructure dependencies, though background job queues can be introduced later if execution times exceed HTTP timeout thresholds.
+
+### What I Should Know
+- The Pipe-and-Filter pattern breaks complex multi-stage data processing into decoupled, testable transform functions.
+- End-to-end integration tests using `TestClient` verify that request validation, pipeline execution, and JSON output serialization work seamlessly together.
