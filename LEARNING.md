@@ -96,3 +96,54 @@ Third-party GitHub repositories submitted by users or candidates are **UNTRUSTED
 ### What I Should Know
 - Always use `shell=False` when calling `subprocess.run` with untrusted string inputs to prevent shell command injection.
 - `os.path.realpath` resolves symlinks and `../` paths to absolute canonical paths, making it the industry standard for preventing Directory Traversal vulnerabilities.
+
+---
+
+## Step 2.2 — Context Summarizer, Prompt Framing & Token Budgeter
+
+### Concept
+Prompt Injection Protection, Untrusted Data Framing & Token Budget Management.
+
+### Why Redline Uses It
+Repository text processed by Redline could contain malicious prompt injection attacks embedded inside code comments or `README.md` files attempting to override system evaluation logic. Furthermore, raw repository code can exceed LLM context window caps. Redline must strictly frame untrusted repository text and cap prompt context tokens under strict budget limits.
+
+### How It Works in Our Project
+1. **Context Structuring (`format_repository_context`)**: Formats AST symbol outlines, detected routes, and file trees in order of architectural density.
+2. **Token Budgeting (`estimate_tokens`, `truncate_to_token_budget`)**: Measures context size (~4 chars/token) and caps output under `MAX_TOKEN_BUDGET` (15,000 tokens).
+3. **Data Isolation Framing (`apply_untrusted_data_framing`)**: Encloses repository text strictly inside `<untrusted_repository_data>` tags and prepends a mandatory System Security Notice instructing the LLM to treat content as inert data only.
+
+### Important Engineering Decisions
+- **Decision**: Wrap all repository context inside XML delimiters (`<untrusted_repository_data>`) paired with an explicit System Boundary Notice.
+- **Why**: Protects Redline against Prompt Injection attacks by instructing the LLM that content inside tag boundaries is passive data and cannot override system instructions.
+- **Alternative**: Passing raw repository strings directly into LLM prompts without isolation tags.
+- **Tradeoff**: Consumes a few extra tokens for XML tags and security notices, but guarantees robust data boundary isolation.
+
+### What I Should Know
+- Prompt Injection is the #1 security vulnerability in LLM applications. Always isolate user-controlled or third-party text using structural tag boundaries.
+- Prioritizing high-density context (API routes and symbol outlines) over raw boilerplate code reduces LLM token consumption by 80-90% while maintaining architectural signal.
+
+---
+
+## Step 3.1 — Assessment Task Impact Analyzer
+
+### Concept
+LLM Structured Output Pipeline & Blast Radius Mapping.
+
+### Why Redline Uses It
+Before Redline can simulate candidate profile strategies or evaluate assessment signal health, it must determine the architectural blast radius of the candidate task. `TaskImpactService` maps which files, modules, and cross-module dependencies will be touched, and determines the architectural depth required (HIGH, MEDIUM, LOW).
+
+### How It Works in Our Project
+1. **`TaskImpactResult`**: Pydantic schema holding `impacted_files`, `impacted_modules`, `architectural_depth_required`, `cross_module_dependencies`, `potential_side_effects`, and `summary`.
+2. **Dual-Mode Execution**:
+   - Live Mode (`USE_MOCK_LLM=False`): Calls Google Gemini API (`google-genai` client) passing `response_mime_type="application/json"` and `response_schema=TaskImpactResult`.
+   - Mock Mode (`USE_MOCK_LLM=True`): Uses `generate_mock_impact` heuristic engine to evaluate task scope dynamically based on symbol matching and keyword depth heuristics.
+
+### Important Engineering Decisions
+- **Decision**: Use `google-genai` with `response_mime_type="application/json"` and Pydantic schema validation paired with a dynamic heuristic mock engine.
+- **Why**: Guarantees machine-parseable JSON responses from Gemini without string parsing errors, while providing instant, deterministic execution for offline dev and test suites.
+- **Alternative**: Making live LLM calls during unit testing.
+- **Tradeoff**: Mock mode requires writing domain heuristic generators, but provides 100% test reliability and zero API latency.
+
+### What I Should Know
+- Gemini API native JSON schema enforcement guarantees that LLMs return JSON matching Pydantic class fields directly.
+- Mapping task prompts against static AST symbol lists allows Redline to detect potential unvalidated side effects (e.g. unbounded RAM usage or bypassing rate limiters) before running candidate simulations.

@@ -88,6 +88,16 @@ class RepoContextSummary(BaseModel):
     key_symbols: list[RepoSymbol] = Field(default_factory=list)
 
 
+class TaskImpactResult(BaseModel):
+    """Result of mapping candidate assessment task against repository context."""
+    impacted_files: list[str] = Field(default_factory=list)
+    impacted_modules: list[str] = Field(default_factory=list)
+    architectural_depth_required: LevelEnum
+    cross_module_dependencies: list[str] = Field(default_factory=list)
+    potential_side_effects: list[str] = Field(default_factory=list)
+    summary: str
+
+
 # ---------------------------------------------------------------------------
 # Metric & Signal Scoring Schemas
 # ---------------------------------------------------------------------------
