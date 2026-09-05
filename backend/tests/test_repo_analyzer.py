@@ -68,3 +68,31 @@ def test_analyze_local_backend_directory():
     assert "app/main.py" in summary.file_tree
     # Check that secrets like .env were NOT included in file_tree
     assert not any(".env" in f for f in summary.file_tree)
+
+def test_ts_js_ast_symbol_extraction():
+    ts_code = '''
+export interface UserDTO {
+    id: string;
+    email: string;
+}
+
+export type UserRole = "admin" | "candidate";
+
+export default class UserService<T> {
+    async findUser(): Promise<UserDTO> {}
+}
+
+export default function renderUserCard() {}
+
+const handleLogin = async (req, res) => {};
+app.get('/api/users', handleLogin);
+'''
+    syms, routes = RepoAnalyzerService.extract_js_ts_symbols("src/user.ts", ts_code)
+    sym_names = [s.name for s in syms]
+    assert "UserDTO" in sym_names
+    assert "UserRole" in sym_names
+    assert "UserService" in sym_names
+    assert "renderUserCard" in sym_names
+    assert "handleLogin" in sym_names
+    assert len(routes) == 1
+    assert "GET /api/users" in routes[0]

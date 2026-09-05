@@ -172,13 +172,26 @@ class RepoAnalyzerService:
         symbols: list[RepoSymbol] = []
         routes: list[str] = []
 
-        # Classes
-        class_matches = re.findall(r"class\s+([A-Za-z0-9_]+)", content)
+        # Classes (supports generic class Foo<T>, export default class)
+        class_matches = re.findall(r"(?:export\s+)?(?:default\s+)?class\s+([A-Za-z0-9_]+)", content)
         for c in class_matches:
             symbols.append(RepoSymbol(name=c, symbol_type="class", file_path=file_path))
 
-        # Functions / Arrow functions
-        func_matches = re.findall(r"(?:function\s+([A-Za-z0-9_]+)|const\s+([A-Za-z0-9_]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>)", content)
+        # TypeScript Interfaces & Type Aliases
+        interface_matches = re.findall(r"(?:export\s+)?interface\s+([A-Za-z0-9_]+)", content)
+        for i in interface_matches:
+            symbols.append(RepoSymbol(name=i, symbol_type="interface", file_path=file_path))
+
+        type_matches = re.findall(r"(?:export\s+)?type\s+([A-Za-z0-9_]+)\s*=", content)
+        for t in type_matches:
+            symbols.append(RepoSymbol(name=t, symbol_type="type", file_path=file_path))
+
+        # Functions / Arrow functions (supports export default function, const foo = ...)
+        func_matches = re.findall(
+            r"(?:export\s+)?(?:default\s+)?function\s+([A-Za-z0-9_]+)|"
+            r"(?:export\s+)?const\s+([A-Za-z0-9_]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_]+)\s*=>",
+            content
+        )
         for f1, f2 in func_matches:
             fname = f1 or f2
             if fname:
