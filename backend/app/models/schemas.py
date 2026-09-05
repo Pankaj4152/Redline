@@ -75,8 +75,8 @@ class AnalysisRequest(BaseModel):
             # Check if canonical path resides within workspace_root or tempdir
             def is_subpath(child: str, parent: str) -> bool:
                 try:
-                    p = os.path.realpath(parent)
-                    c = os.path.realpath(child)
+                    p = os.path.normcase(os.path.realpath(parent))
+                    c = os.path.normcase(os.path.realpath(child))
                     return os.path.commonpath([c, p]) == p
                 except ValueError:
                     return False

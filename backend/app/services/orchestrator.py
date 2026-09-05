@@ -61,9 +61,28 @@ class AnalysisOrchestratorService:
         is_artificially_complex = "Artificial Complexity" in signal_report.verdict
         complexity_reason = signal_report.reasoning_signal.contributing_evidence[0] if is_artificially_complex else None
 
-        # Check if fallback/mock engine was used
-        is_fallback = settings.USE_MOCK_LLM or "Fallback due to API error" in task_impact.summary
-        fallback_reason = "Executed with mock heuristics (USE_MOCK_LLM=True or upstream API error)" if is_fallback else None
+        # Check if fallback/mock engine was used and gather detailed API errors if any
+        service_errors = [
+            err for err in [
+                getattr(task_impact_service, "last_error", None),
+                getattr(strategy_simulator_service, "last_error", None),
+                getattr(signal_evaluation_service, "last_error", None),
+                getattr(upgrade_generator_service, "last_error", None)
+            ] if err is not None
+        ]
+
+        if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
+            is_fallback = True
+            fallback_reason = "Executed with mock heuristics (USE_MOCK_LLM=True or missing API key)"
+        elif service_errors:
+            is_fallback = True
+            fallback_reason = f"Fallback due to Gemini API error: {'; '.join(service_errors)}"
+        elif "Fallback due to API error" in task_impact.summary:
+            is_fallback = True
+            fallback_reason = f"Fallback due to Gemini API error in task impact mapping."
+        else:
+            is_fallback = False
+            fallback_reason = None
 
         # Assemble & Return Complete Result Data Model
         return FullAssessmentResult(
@@ -82,3 +101,4 @@ class AnalysisOrchestratorService:
 
 
 orchestrator_service = AnalysisOrchestratorService()
+

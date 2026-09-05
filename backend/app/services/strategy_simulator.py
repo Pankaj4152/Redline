@@ -90,6 +90,7 @@ class StrategySimulatorService:
         """
         Runs strategy simulations for the 3 candidate profiles using Gemini LLM (or mock fallback).
         """
+        self.last_error = None
         if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
             return self.generate_mock_simulations(summary, impact, task_description)
 
@@ -128,8 +129,11 @@ Simulate the 3 candidate profiles and return a JSON list of 3 SimulationProfileR
                 return [SimulationProfileResult.model_validate(item) for item in data["simulations"]]
             return self.generate_mock_simulations(summary, impact, task_description)
         except Exception as e:
+            err_msg = f"StrategySimulatorService: {str(e)}"
+            self.last_error = err_msg
             logger.exception("Gemini API call failed in StrategySimulatorService; returning heuristic mock simulations.")
             return self.generate_mock_simulations(summary, impact, task_description)
+
 
 
 strategy_simulator_service = StrategySimulatorService()

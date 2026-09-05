@@ -306,3 +306,39 @@ Without explicit evidence grounding, an LLM recommendation engine can hallucinat
 ### Key Learnings
 - **Empirical Grounding over Hallucinated Upgrades**: Every recommendation must trace directly back to concrete code evidence in the target repository.
 - **Artificial Complexity Penalties**: More complexity does NOT equal higher engineering signal. Adding ungrounded architectural requirements lowers assessment credibility.
+
+---
+
+## Comprehensive Code Review & Scoring Logic Audit Remediation
+
+### Concept
+Dynamic Weighted Health Scoring, Windows Drive Letter Normalization, Normalized Keyword Matching, and Complete LLM API Exception Traceback Propagation.
+
+### Why Redline Needed It
+An independent audit (`REVIEW.md`) identified 2 CRITICAL scoring bugs and 3 MAJOR system issues:
+1. Hardcoded score overrides (`overall_score = 30` / `72` / `45`) discarded the computed sub-score weighted sum.
+2. Static binary sub-metric score constants (e.g. 85 vs 35) ignored prompt length, touched file counts, and keyword density in mock mode.
+3. Artificial complexity warning required 2+ ungrounded matches instead of 1, and failed on hyphenated string comparisons (`rate-limit` vs `Rate-Limiting`).
+4. Windows path containment checks failed when drive letters differed in case (`d:\` vs `D:\`).
+5. Gemini API errors yielded generic fallback strings without propagating exception details.
+
+### How It Works in Our Project
+1. **Dynamic Weighted Overall Health Scoring (`signal_evaluator.py`)**:
+   - Calculated `overall_health` weighted sum is used directly as the final score (`overall_health_score`).
+   - Artificial complexity applies a dynamic relative penalty (`overall_health = max(15, overall_health - 25)`).
+2. **Dynamic Heuristic Sub-Scores (`signal_evaluator.py`)**:
+   - Sub-metric scores are calculated dynamically using formulas based on `impact.impacted_files` count, module count, task prompt character length, and test/boundary keyword checks.
+3. **Normalized Keyword Matching & Lowered Threshold (`signal_evaluator.py`)**:
+   - `is_artificially_complex` triggers on `len(ungrounded_matches) >= 1`.
+   - Normalizes strings by lower-casing, stripping hyphens, and extracting clean token keywords.
+4. **Windows Path Case Normalization (`schemas.py` & `repo_analyzer.py`)**:
+   - Wrapped canonical path comparisons with `os.path.normcase(os.path.realpath(path))` to handle drive letter case variations on Windows OS.
+5. **Detailed LLM API Error Traceback Propagation (`orchestrator.py` & LLM services)**:
+   - LLM services (`task_impact`, `strategy_simulator`, `signal_evaluator`, `upgrade_generator`) capture exception strings in `self.last_error`.
+   - `orchestrator.py` aggregates service errors into `fallback_reason` (e.g. `Fallback due to Gemini API error: SignalEvaluationService: ...`).
+
+### Key Learnings
+- **Score Integrity**: Never override computed mathematical weighted sums with static numbers; sub-metrics must directly drive top-level scores.
+- **Cross-Platform Path Hygiene**: OS paths on Windows are case-insensitive (`D:` == `d:`), requiring `os.path.normcase` prior to prefix containment comparisons.
+- **Observability in Degraded Execution**: Fallbacks should explicitly report *why* they triggered, propagating exact exception messages into API responses.
+

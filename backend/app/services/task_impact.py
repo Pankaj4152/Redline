@@ -89,6 +89,7 @@ class TaskImpactService:
         """
         Analyzes the candidate task against the repository context using Gemini LLM (or mock fallback).
         """
+        self.last_error = None
         # If mock mode is enabled or API key is absent, use heuristic mock impact generator
         if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
             return self.generate_mock_impact(summary, task_description)
@@ -124,6 +125,8 @@ Map the task against the repository data above and return the TaskImpactResult J
             return TaskImpactResult.model_validate(data)
 
         except Exception as e:
+            err_msg = f"TaskImpactService: {str(e)}"
+            self.last_error = err_msg
             logger.exception("Gemini API call failed in TaskImpactService; returning heuristic mock fallback.")
             mock_result = self.generate_mock_impact(summary, task_description)
             mock_result.summary += f" (Fallback due to API error: {str(e)})"
@@ -131,3 +134,4 @@ Map the task against the repository data above and return the TaskImpactResult J
 
 
 task_impact_service = TaskImpactService()
+

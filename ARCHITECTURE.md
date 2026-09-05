@@ -2,11 +2,11 @@
 
 ## 1. System Architecture
 
-Redline uses a lightweight, modular pipe-and-filter architecture designed for fast execution, low latency, and structured LLM reasoning.
+Redline uses a lightweight, modular pipe-and-filter architecture designed for fast execution, low latency, structured LLM reasoning, and **strict repository evidence grounding**.
 
 ```text
-                                FRONTEND (React + Vite + Tailwind/Vanilla CSS)
-                                 (Displays Heuristic Diagnostic Feedback & Evidence)
+                                FRONTEND (React + Vite + Vanilla CSS)
+                     (Displays Grounding Facts, Candidate Trajectories & Upgrades)
                                                       │
                                                       │ REST / JSON API
                                                       ▼
@@ -14,17 +14,20 @@ Redline uses a lightweight, modular pipe-and-filter architecture designed for fa
 │                                       BACKEND (FastAPI / Async Python)                                 │
 │                                                                                                        │
 │   ┌─────────────────────┐       ┌──────────────────────┐       ┌──────────────────────────────────┐   │
-│   │ 1. Git & Repo Ingestion│────►│ 2. Context Aggregator │────►│ 3. Assessment & Impact Analyzer │   │
-│   │    & AST Extractor  │       │   & Token Budgeter   │       │      (Gemini Structured Output)   │   │
+│   │ 1. Git Ingestion &  │────►│ 2. Repo Fact Matrix  │────►│ 3. Assessment & Impact Analyzer │   │
+│   │    AST Extractor    │       │    Extractor Engine  │       │      (Gemini Structured Output)   │   │
 │   └─────────────────────┘       └──────────────────────┘       └──────────────────────────────────┘   │
-│              │                                                                   │                     │
-│  [Security Policy Engine]                                                        ▼                     │
-│  (Sanitization, Whitelisting,                                  ┌──────────────────────────────────┐   │
-│   Secret Filter, Data Boundary) │ 6. Report & Upgrade │◄──────│ 5. Heuristic Signal │◄──────│ 4. Candidate Strategy Simulator  │   │
-│                                 │    Generator Engine │       │    Evaluation Engine │       │   (3 AI Candidate Behaviors)     │   │
-│                                 │                     │       │ (Transparent Evidence│       │                              │   │
-│                                 │                     │       │    Linkage Mapping)  │       │                              │   │
-│                                 └─────────────────────┘       └──────────────────────┘       └──────────────────────────────┘   │
+│              │                              │                                    │                     │
+│  [Security Policy Engine]       [Anti-Hallucination]                             ▼                     │
+│  (Sanitization, Whitelisting,   (Observed vs Absent             ┌──────────────────────────────────┐   │
+│   Secret Filter, Data Boundary)  Abstractions Matrix)           │ 4. Trajectory Strategy Simulator │   │
+│                                             │                  │  (File Inspection Step Comparison│   │
+│                                             ▼                  └──────────────────┬───────────────┘   │
+│   ┌─────────────────────┐       ┌──────────────────────┐                          │                   │
+│   │ 6. Grounded Upgrade │◄──────│ 5. Grounded Signal   │◄─────────────────────────┘                   │
+│   │    Generator Engine │       │    Evaluation Engine │                                              │
+│   │ (Fact-Checked Upgrades)     │ (Evidence & Fact Map)│                                              │
+│   └─────────────────────┘       └──────────────────────┘                                              │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
                                                       │
                                                       │ SDK Calls
@@ -38,33 +41,32 @@ Redline uses a lightweight, modular pipe-and-filter architecture designed for fa
 
 ### 2.1 Repository Ingestion & AST Extractor (`RepoAnalyzerService`)
 - **Responsibility**: Clones or scans local/remote GitHub repositories. Extracts directory maps, file contents, language constructs (functions, classes, imports, exported routes) while filtering out vendor/build artifacts (`node_modules`, `.venv`, `.git`, binary files).
-- **Security Enforcements**:
-  - Enforces GitHub repository URL validation (regex filter restricting to `https://github.com/org/repo` format).
-  - Enforces single-depth shallow clones (`--depth 1`) and strict repository size caps (<50MB).
-  - Enforces canonical path verification (`os.path.realpath`) to block directory traversal attacks (`../`).
-  - Enforces strict file extension whitelisting (`.py`, `.ts`, `.js`, etc.) and secret file exclusions (`.env*`, `*.pem`, `credentials`, etc.).
-  - **Zero Execution Rule**: Analyzes code statically. Arbitrary repository scripts or build commands are **never executed**.
+- **Security Enforcements**: Enforces GitHub URL validation, single-depth shallow clones (`--depth 1`), canonical path verification (`os.path.realpath`), file extension whitelisting, secret file exclusions, and zero code execution.
 - **Output**: Structured tree map and sanitized symbol summaries.
 
-### 2.2 Context Aggregator & Token Budgeter (`ContextBudgetService`)
-- **Responsibility**: Truncates and formats repository summaries to fit optimal LLM prompt windows (e.g. max 15,000 tokens) without losing critical architectural interfaces or data schemas.
-- **Security Policy**: Wraps all repository code, comments, READMEs, and config file snippets in explicit untrusted data block delimiters (e.g. `<untrusted_repository_data>`). Enforces system prompt boundary instructions ensuring repo contents are parsed exclusively as **passive DATA** and cannot override Redline evaluation instructions.
+### 2.2 Repository Fact Matrix Extractor (`RepoFactMatrixService`)
+- **Responsibility**: Analyzes AST symbols and codebase structure to generate an explicit `RepositoryFactMatrix`:
+  - **Observed Abstractions**: Existing frameworks, pagination patterns, data access layers, authentication decorators, database connection pools.
+  - **Absent Abstractions**: Explicitly logs abstractions that DO NOT exist in the repository (e.g., NO streaming helpers, NO rate-limiting middleware, NO Redis cache).
+- **Output**: `RepositoryFactMatrix` payload used to ground recommendations and prevent LLM hallucinations.
 
 ### 2.3 Assessment Impact Analyzer (`TaskImpactService`)
-- **Responsibility**: Evaluates the candidate task against the repository context to determine which modules are touched, cross-module dependencies, and potential side effects.
+- **Responsibility**: Maps candidate tasks against the `RepositoryFactMatrix` to identify touched modules and required new abstractions.
 
 ### 2.4 Candidate Strategy Simulator Engine (`StrategySimulatorService`)
-- **Responsibility**: Runs 3 structured LLM simulations:
-  1. **AI-Dependent Engineer**: Simulates a candidate relying entirely on broad natural-language prompts.
-  2. **Naive AI-Assisted Engineer**: Simulates a candidate doing basic manual edits and happy-path checks.
-  3. **Strong AI-Native Engineer**: Simulates a candidate inspecting architectural constraints, writing targeted prompts, and validating non-obvious failure modes.
+- **Responsibility**: Simulates candidate solving behavior by producing file-by-file inspection trajectories:
+  1. **AI-Dependent Engineer Trajectory**: Inspects 1 file -> Accepts raw AI output -> Misses existing repo abstractions/pagination contracts.
+  2. **Naive AI-Assisted Engineer Trajectory**: Inspects routes -> Manually tweaks syntax -> Misses non-obvious failure modes.
+  3. **Strong AI-Native Engineer Trajectory**: Inspects route + model + CRUD layers -> Reuses existing abstractions -> Explicitly writes boundary tests.
 
-### 2.5 Heuristic Signal Evaluator (`SignalEvaluationService`)
-- **Responsibility**: Calculates qualitative heuristic diagnostic scores across 5 key dimensions (AI Solvability, Reasoning Signal, Repo Depth, Architectural Judgment, Verification Requirement).
-- **Diagnostic Transparency Rule**: Every calculated dimension MUST include an explicit list of contributing qualitative evidence statements and specific file/code references. The evaluator functions purely as a **heuristic assessment design diagnostic**, making no claims of statistical validity or predictive candidate benchmarking.
+### 2.5 Grounded Heuristic Signal Evaluator (`SignalEvaluationService`)
+- **Responsibility**: Evaluates signal score across 5 key dimensions with mandatory repository evidence linkages.
+- **Artificial Complexity Penalty**: Automatically detects and penalizes tasks that introduce ungrounded architectural bloat (e.g. adding microservices to a simple monolith).
 
-### 2.6 Report & Upgrade Generator (`UpgradeGeneratorService`)
-- **Responsibility**: Generates actionable, repository-specific task tweaks that elevate the required engineering depth without inflating task duration.
+### 2.6 Grounded Upgrade Generator Engine (`UpgradeGeneratorService`)
+- **Responsibility**: Generates upgraded tasks strictly validated against the `RepositoryFactMatrix`.
+- **Anti-Hallucination Guardrail**: Rejects recommendations that require non-existent abstractions (e.g. rate-limiting middleware) unless explicitly justified.
+- **Output**: `EvidenceGroundingChain` (Repository Facts -> Task Implications -> Upgraded Task Rationale).
 
 ---
 
@@ -72,12 +74,12 @@ Redline uses a lightweight, modular pipe-and-filter architecture designed for fa
 
 1. **User Request**: User inputs GitHub Repo URL (`https://github.com/...`) and Candidate Task Prompt into the React dashboard.
 2. **URL & Input Sanitization**: Backend validates GitHub URL schema and sanitizes task prompt inputs.
-3. **Secure Ingestion & Parsing**: Backend clones/scans the repo, parses file tree + AST symbols into `RepoContextSummary`, ignoring secret files and executing zero code.
-4. **Data Isolation Framing**: `ContextBudgetService` encapsulates repo text into untrusted data delimiters.
-5. **Task Mapping**: `TaskImpactService` calls Gemini API to pinpoint affected files and architectural boundaries.
-6. **Strategy Simulation**: Backend runs simulation calls for the 3 candidate profiles using structured Pydantic schemas.
-7. **Diagnostic Signal Scoring**: Backend computes heuristic metric scores, attaching specific evidence quotes and file links to each dimension.
-8. **Task Upgrade**: Backend prompts Gemini to formulate an upgraded task description containing hard design constraints.
+3. **Secure Ingestion & AST Extraction**: Backend scans repo, parses file tree + AST symbols into `RepoContextSummary`.
+4. **Fact Matrix Compilation**: `RepoFactMatrixService` identifies active vs absent repository abstractions.
+5. **Task Mapping**: `TaskImpactService` maps candidate task against the Fact Matrix.
+6. **Trajectory Simulation**: Backend runs simulation producing file-by-file inspection trajectories for all 3 profiles.
+7. **Signal Evaluation**: Backend calculates signal scores, penalizing ungrounded artificial complexity.
+8. **Fact-Checked Upgrade**: Backend generates upgraded task description constrained strictly by the `RepositoryFactMatrix`.
 9. **Response Delivery**: Full `FullAssessmentResult` object returned to the frontend for visualization.
 
 ---
@@ -90,7 +92,7 @@ Redline uses a lightweight, modular pipe-and-filter architecture designed for fa
 {
   "repo_url": "https://github.com/example/sample-fastapi-app",
   "branch": "main",
-  "task_description": "Add a CSV export endpoint for user transaction history.",
+  "task_description": "Add a /api/items/search endpoint that accepts a query and returns matching items.",
   "sample_preset_id": null
 }
 ```
@@ -100,65 +102,89 @@ Redline uses a lightweight, modular pipe-and-filter architecture designed for fa
 {
   "job_id": "job_987654321",
   "status": "completed",
-  "diagnostic_disclaimer": "The Assessment Health Score is a heuristic design diagnostic based on static code structure and simulated AI solving strategies. It is not a statistically validated measurement or candidate prediction.",
+  "diagnostic_disclaimer": "The Assessment Health Score is a heuristic design diagnostic based on static code structure and simulated AI solving strategies. It is not a statistically validated measurement.",
   "summary": {
-    "overall_health_score": 42,
+    "overall_health_score": 30,
     "verdict": "Weak Signal - Highly AI-Delegable",
     "ai_solvability": "HIGH",
     "reasoning_signal": "LOW"
   },
+  "fact_matrix": {
+    "observed_abstractions": [
+      "Item queries loaded via SQLModel in app/crud/items.py",
+      "Existing list endpoint in app/api/routes/items.py uses page/limit pagination"
+    ],
+    "absent_abstractions": [
+      "No streaming response implementation detected",
+      "No custom rate-limiting middleware detected"
+    ]
+  },
+  "evidence_grounding_chain": {
+    "repository_facts": [
+      "app/api/routes/items.py contains item retrieval logic.",
+      "app/crud/items.py defines SQLModel query execution.",
+      "Existing list endpoint mandates pagination parameters."
+    ],
+    "task_implications": [
+      "Candidate task can currently be solved by copying single route handler.",
+      "Candidate should be forced to reuse existing pagination abstractions."
+    ],
+    "forbidden_hallucinated_recommendations": [
+      "Do NOT recommend streaming response memory limits (no streaming helper exists).",
+      "Do NOT recommend preserving rate-limiting middleware (no rate limiter exists)."
+    ],
+    "grounding_confidence": "HIGH"
+  },
   "metrics": {
     "ai_solvability": {
-      "score": 85,
-      "contributing_evidence": [
-        "Default AI prompt generates a working solution on first try without inspecting repository abstractions.",
-        "Modifies only single route handler file (routes/export.py)."
-      ]
+      "score": 90,
+      "contributing_evidence": ["Raw AI prompt generates working endpoint in single attempt without reading CRUD abstraction."]
     },
     "reasoning_signal": {
-      "score": 30,
-      "contributing_evidence": [
-        "Task requires zero cross-module dependency understanding.",
-        "No edge-case validation or error contract enforcement demanded."
-      ]
+      "score": 25,
+      "contributing_evidence": ["Task requires zero cross-module architectural decisions."]
     },
     "repo_depth": {
-      "score": 25,
-      "contributing_evidence": ["No interaction with underlying database connection pool or background worker queues."]
+      "score": 20,
+      "contributing_evidence": ["Candidate does not need to inspect app/crud/items.py or database pool models."]
     },
     "architectural_judgment": {
-      "score": 20,
-      "contributing_evidence": ["Standard boilerplate pattern can be pasted without evaluating memory limits."]
+      "score": 15,
+      "contributing_evidence": ["Standard boilerplate pattern pasted without evaluating query constraints."]
     },
     "verification_requirement": {
-      "score": 35,
-      "contributing_evidence": ["Superficial happy-path HTTP 200 check passes without stress testing volume bounds."]
+      "score": 30,
+      "contributing_evidence": ["Happy-path query returns HTTP 200; edge cases unexercised."]
     }
   },
   "simulations": [
     {
       "profile": "AI-Dependent Engineer",
       "success_likelihood": "HIGH",
-      "delegation_level": "90%",
-      "missed_risks": ["Ignores memory limit on large datasets", "Bypasses existing streaming contract"]
+      "delegation_level": "95%",
+      "files_inspected": ["app/api/routes/items.py"],
+      "missed_risks": ["Bypassed existing pagination helper", "No boundary check for empty search string"]
     },
     {
       "profile": "Naive AI-Assisted Engineer",
       "success_likelihood": "HIGH",
       "delegation_level": "70%",
-      "missed_risks": ["Missing error handling for empty transactions"]
+      "files_inspected": ["app/api/routes/items.py", "app/models/item.py"],
+      "missed_risks": ["Missed handling queries beyond available result set"]
     },
     {
       "profile": "Strong AI-Native Engineer",
       "success_likelihood": "HIGH",
       "delegation_level": "40%",
-      "missed_risks": []
+      "files_inspected": ["app/api/routes/items.py", "app/crud/items.py", "app/models/item.py"],
+      "reused_abstractions": ["Reused SQLModel query pagination helper from app/crud/items.py"],
+      "added_verifications": ["Added unit test covering empty query string and non-matching search term"]
     }
   ],
   "recommendations": {
-    "original_task": "Add a CSV export endpoint for user transaction history.",
-    "upgraded_task": "Add a CSV export endpoint for user transaction history that streams results to stay under 50MB RAM usage and preserves existing API rate-limiting middleware.",
-    "rationale": "Forces candidate to inspect memory constraints and integrate with existing custom middleware rather than pasting generic snippet."
+    "original_task": "Add a /api/items/search endpoint that accepts a query and returns matching items.",
+    "upgraded_task": "Add a /api/items/search endpoint that reuses the repository's existing pagination helper from app/crud/items.py. Handle empty search queries, non-matching terms, and request pages beyond available results with appropriate HTTP error codes and test coverage.",
+    "rationale": "Grounded directly in existing repository pagination patterns. Forces candidate to inspect CRUD layers rather than pasting isolated endpoint snippet."
   }
 }
 ```
@@ -167,35 +193,22 @@ Redline uses a lightweight, modular pipe-and-filter architecture designed for fa
 
 ## 5. Database & Storage Structure
 
-For the **Proof-of-Concept MVP**, complex external persistent database management (e.g. Postgres) is **not required**.
+For the **Proof-of-Concept MVP**, complex external persistent database management is **not required**.
 - **In-Memory Cache**: Python dictionary cache storing recent analysis jobs indexed by `job_id` or `hash(repo_url + task)`.
-- **Local File Cache (Scratch/Temp)**: Repositories cloned into temporary working folders (`/tmp/redline_repos/` or local `backend/scratch/`) with automatic cleanup and path isolation.
-- **Optional SQLite File**: SQLite DB using `SQLAlchemy` / `aiosqlite` if job persistence across server restarts is desired later.
+- **Local File Cache**: Temporary working folders (`/tmp/redline_repos/` or local `backend/scratch/`) with automatic cleanup.
 
 ---
 
 ## 6. Important Technical Decisions
 
-1. **Heuristic Diagnostic Framing vs Statistical Validation**:
-   - *Decision*: Treat scores purely as heuristic design feedback and mandate transparent evidence linkage for every metric score in the API response.
-   - *Rationale*: Prevents misinterpretation of LLM diagnostic evaluations as objective candidate metrics or scientifically validated measurements.
+1. **Repository Fact Matrix & Anti-Hallucination Guardrail**:
+   - *Decision*: Extract an explicit matrix of observed vs absent codebase abstractions prior to generating recommendations.
+   - *Rationale*: Prevents LLM from inventing non-existent constraints (e.g. rate-limiting middleware, 50MB streaming limits) and congratulating itself for solving them.
 
-2. **Untrusted Data Boundary & Anti-Prompt-Injection Rule**:
-   - *Decision*: Treat all scanned repository contents (READMEs, inline comments, code files, docs) as passive data rather than instructions.
-   - *Rationale*: Prevents repository authors or candidates from embedding prompt injections in code comments or READMEs to manipulate Redline's signal evaluation.
+2. **File-Level Candidate Inspection Trajectories**:
+   - *Decision*: Model candidate profiles using specific file inspection paths (e.g., AI-dependent inspects 1 file vs Strong engineer inspects route + CRUD + model files).
+   - *Rationale*: Replaces vague binary outcomes with convincing, step-by-step evidence of what strong engineers notice vs AI delegators.
 
-3. **Zero Code Execution**:
-   - *Decision*: Never execute arbitrary repository scripts, setup scripts, or test runners.
-   - *Rationale*: Eliminates code execution vulnerability vectors entirely while maintaining fast static analysis times.
-
-4. **Structured LLM Outputs over Unstructured Parsing**:
-   - *Decision*: Utilize Gemini Pydantic/JSON schema enforcement (`response_mime_type="application/json"`).
-   - *Rationale*: Eliminates fragile regex string parsing for scores, profiles, and evidence arrays.
-
-5. **Simulated Agent Behavior vs Autonomous Execution**:
-   - *Decision*: Use LLM reasoning simulation rather than running actual autonomous coding agents in Docker environments.
-   - *Rationale*: Running real coding agents requires heavy container orchestration, long execution times, and high API costs. Simulation provides instant, deterministic feedback in seconds.
-
-6. **AST Symbol Summarization over Raw File Context Dumping**:
-   - *Decision*: Extract language symbol outlines instead of feeding entire raw file contents into the prompt.
-   - *Rationale*: Maximizes relevance, reduces noise, avoids context overflow, and keeps execution latency under 30 seconds.
+3. **Artificial Complexity Detector**:
+   - *Decision*: Explicitly penalize tasks that introduce ungrounded architectural complexity.
+   - *Rationale*: Prevents prompt gaming where users or LLMs simply pile on random technologies (Elasticsearch, Redis) to artificially inflate assessment scores.

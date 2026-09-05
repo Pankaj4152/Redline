@@ -41,55 +41,59 @@ class SignalEvaluationService:
         """
         is_high_depth = impact.architectural_depth_required == LevelEnum.HIGH
         
+        file_count = len(impact.impacted_files)
+        module_count = len(impact.impacted_modules)
+        task_len = len(task_description.strip())
+        
         # 1. AI Solvability Metric (High score = easily solvable by raw AI)
         if not is_high_depth:
-            ai_solvability_score = 85
+            ai_solvability_score = max(55, 90 - (file_count * 5))
             ai_solvability_level = LevelEnum.HIGH
             ai_solvability_evidence = [
                 "Default AI prompt generates a working solution on first try without inspecting repository abstractions.",
-                f"Modifies localized file(s) ({', '.join(impact.impacted_files[:2])}) without touching existing middleware."
+                f"Modifies localized file(s) ({', '.join(impact.impacted_files[:2]) or 'main.py'}) without touching existing middleware."
             ]
         else:
-            ai_solvability_score = 35
+            ai_solvability_score = max(20, 45 - (file_count * 5))
             ai_solvability_level = LevelEnum.LOW
             ai_solvability_evidence = [
-                "Raw AI prompts generate generic snippets that fail to handle memory constraints.",
+                "Raw AI prompts generate generic snippets that fail to handle boundary constraints.",
                 "Requires non-obvious interface integration across modules."
             ]
 
         # 2. Reasoning Signal Metric
-        reasoning_score = 75 if is_high_depth else 30
-        reasoning_level = LevelEnum.HIGH if is_high_depth else LevelEnum.LOW
+        reasoning_score = min(95, (60 if is_high_depth else 30) + min(25, task_len // 20))
+        reasoning_level = LevelEnum.HIGH if reasoning_score >= 65 else LevelEnum.MEDIUM if reasoning_score >= 45 else LevelEnum.LOW
         reasoning_evidence = [
-            "Demands explicit memory streaming constraints and error contract verification." if is_high_depth
+            "Demands repository-grounded constraints and error contract verification." if is_high_depth
             else "Task requires minimal cross-module reasoning or failure mode validation."
         ]
 
         # 3. Repo Depth Metric
-        repo_depth_score = 70 if len(impact.impacted_files) > 1 else 25
-        repo_depth_level = LevelEnum.HIGH if len(impact.impacted_files) > 1 else LevelEnum.LOW
+        repo_depth_score = min(95, 20 + (file_count * 15) + (module_count * 10))
+        repo_depth_level = LevelEnum.HIGH if repo_depth_score >= 65 else LevelEnum.MEDIUM if repo_depth_score >= 45 else LevelEnum.LOW
         repo_depth_evidence = [
-            f"Touches {len(impact.impacted_files)} file(s) across module boundaries ({', '.join(impact.impacted_modules)})." if len(impact.impacted_files) > 1
-            else "Requires zero interaction with underlying database connections or background worker queues."
+            f"Touches {file_count} file(s) across module boundaries ({', '.join(impact.impacted_modules)})." if file_count > 1
+            else "Requires minimal interaction with underlying repository abstractions."
         ]
 
         # 4. Architectural Judgment Metric
-        arch_score = 80 if is_high_depth else 20
-        arch_level = LevelEnum.HIGH if is_high_depth else LevelEnum.LOW
+        arch_score = min(95, (65 if is_high_depth else 25) + (module_count * 10))
+        arch_level = LevelEnum.HIGH if arch_score >= 65 else LevelEnum.MEDIUM if arch_score >= 45 else LevelEnum.LOW
         arch_evidence = [
-            "Candidate must balance memory limits against response throughput." if is_high_depth
+            "Candidate must balance model constraints against API interface contracts." if is_high_depth
             else "Standard boilerplate pattern can be pasted without evaluating system trade-offs."
         ]
 
         # 5. Verification Requirement Metric
-        verif_score = 75 if is_high_depth else 35
-        verif_level = LevelEnum.HIGH if is_high_depth else LevelEnum.LOW
+        verif_score = min(95, (65 if is_high_depth else 30) + ("test" in task_description.lower()) * 20)
+        verif_level = LevelEnum.HIGH if verif_score >= 65 else LevelEnum.MEDIUM if verif_score >= 45 else LevelEnum.LOW
         verif_evidence = [
-            "Requires stress testing non-obvious failure modes under high volume data." if is_high_depth
+            "Requires stress testing non-obvious boundary failure modes." if verif_score >= 60
             else "Superficial happy-path HTTP 200 check passes without validating edge cases."
         ]
 
-        # Overall Health Score (Weighted calculation: higher = stronger signal)
+        # Calculate Dynamic Overall Health Score (Weighted Formula)
         overall_health = int(
             (100 - ai_solvability_score) * 0.30 +
             reasoning_score * 0.25 +
@@ -99,40 +103,44 @@ class SignalEvaluationService:
         )
 
         # Check for Artificial Complexity (ungrounded requirements)
-        task_lower = task_description.lower()
+        task_clean = task_description.lower().replace("-", " ")
         absent_list = summary.fact_matrix.absent_abstractions if summary.fact_matrix else []
         ungrounded_matches = []
         for a in absent_list:
-            keyword = a.replace("NO ", "").split("(")[0].strip().lower()
-            if any(w in task_lower for w in ["redis", "elasticsearch", "lock", "stream", "rate-limit", "vector"]):
-                if any(w in keyword for w in ["redis", "search", "lock", "stream", "rate"]):
-                    ungrounded_matches.append(a)
+            clean_fact = a.replace("NO ", "").split("(")[0].strip().lower().replace("-", " ")
+            fact_tokens = [t for t in clean_fact.split() if len(t) > 3]
+            if any(token in task_clean for token in fact_tokens):
+                ungrounded_matches.append(a)
 
-        is_artificially_complex = len(ungrounded_matches) >= 2
+        is_artificially_complex = len(ungrounded_matches) >= 1
 
         if is_artificially_complex:
-            overall_score = 45
+            # Apply dynamic penalty to health score for artificial bloat
+            overall_health = max(15, overall_health - 25)
             verdict = "Artificial Complexity Warning - Ungrounded Architectural Bloat"
             reasoning_evidence = [
                 f"Task introduces ungrounded constraints not supported by repo: {', '.join(ungrounded_matches)}",
                 "High implementation bloat without proportional increase in true engineering signal."
             ]
-        elif is_high_depth:
-            overall_score = 72
+        elif overall_health >= 65:
             verdict = "Strong Signal - High Engineering Judgment Required"
             reasoning_evidence = [
                 "Demands repository-grounded pagination and error contract verification.",
                 "Requires candidate to reuse existing repository conventions."
             ]
+        elif overall_health >= 45:
+            verdict = "Moderate Signal - Moderate Architectural Signal"
+            reasoning_evidence = [
+                "Task touches multiple files but has localized AI delegation surface area."
+            ]
         else:
-            overall_score = 30
             verdict = "Weak Signal - Highly AI-Delegable"
             reasoning_evidence = [
                 "Task requires minimal cross-module reasoning or failure mode validation."
             ]
 
         return SignalHealthReport(
-            overall_health_score=overall_score,
+            overall_health_score=overall_health,
             verdict=verdict,
             ai_solvability=MetricScore(score=ai_solvability_score, level=ai_solvability_level, contributing_evidence=ai_solvability_evidence),
             reasoning_signal=MetricScore(score=reasoning_score, level=reasoning_level, contributing_evidence=reasoning_evidence),
@@ -151,6 +159,7 @@ class SignalEvaluationService:
         """
         Calculates diagnostic assessment health report using Gemini LLM (or mock fallback).
         """
+        self.last_error = None
         if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
             return self.generate_mock_evaluation(summary, impact, simulations, task_description)
 
@@ -185,8 +194,11 @@ Evaluate the 5 signal dimensions and return the SignalHealthReport JSON object.
             data = json.loads(response.text)
             return SignalHealthReport.model_validate(data)
         except Exception as e:
+            err_msg = f"SignalEvaluationService: {str(e)}"
+            self.last_error = err_msg
             logger.exception("Gemini API call failed in SignalEvaluationService; returning heuristic mock evaluation.")
             return self.generate_mock_evaluation(summary, impact, simulations, task_description)
+
 
 
 signal_evaluation_service = SignalEvaluationService()

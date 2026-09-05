@@ -79,8 +79,8 @@ class RepoAnalyzerService:
             workspace_root = os.path.realpath(os.path.join(backend_root, ".."))
             def is_subpath(child: str, parent: str) -> bool:
                 try:
-                    p = os.path.realpath(parent)
-                    c = os.path.realpath(child)
+                    p = os.path.normcase(os.path.realpath(parent))
+                    c = os.path.normcase(os.path.realpath(child))
                     return os.path.commonpath([c, p]) == p
                 except ValueError:
                     return False

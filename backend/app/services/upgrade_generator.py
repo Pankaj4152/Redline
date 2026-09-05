@@ -93,6 +93,7 @@ class UpgradeGeneratorService:
         """
         Generates an upgraded task description using Gemini LLM (or mock fallback).
         """
+        self.last_error = None
         if settings.USE_MOCK_LLM or not settings.GEMINI_API_KEY:
             return self.generate_mock_upgrade(summary, impact, simulations, report, task_description)
 
@@ -126,8 +127,11 @@ Formulate an upgraded task description with rationale and return the TaskRecomme
             data = json.loads(response.text)
             return TaskRecommendation.model_validate(data)
         except Exception as e:
+            err_msg = f"UpgradeGeneratorService: {str(e)}"
+            self.last_error = err_msg
             logger.exception("Gemini API call failed in UpgradeGeneratorService; returning heuristic mock upgrade recommendation.")
             return self.generate_mock_upgrade(summary, impact, simulations, report, task_description)
+
 
 
 upgrade_generator_service = UpgradeGeneratorService()
