@@ -281,3 +281,28 @@ An independent code review identified two critical security vulnerabilities (Pat
 - **CLI Parameter Injection**: Always separate flags from positional CLI arguments using `--`.
 - **Path Traversal Containment**: Canonicalize paths (`os.path.realpath`) and verify parent directory membership, accounting for Windows drive letters.
 - **Fallback Observability**: Never catch and swallow exceptions silently without logging full tracebacks and flagging degraded execution modes in API responses.
+
+---
+
+## Repository Evidence Grounding & Anti-Hallucination Guardrails
+
+### Concept
+Static Fact Extraction, Negative Constraints, and Artificial Complexity Penalization.
+
+### Why Redline Needed It
+Without explicit evidence grounding, an LLM recommendation engine can hallucinate plausible-sounding constraints (e.g. recommending "streaming responses under 50MB RAM" or "custom rate-limiting middleware") when those abstractions do not exist in the candidate repository.
+
+### How It Works in Our Project
+1. **Repository Fact Matrix Extraction (`RepoAnalyzerService`)**:
+   - Statically compiles `observed_abstractions` (e.g. `FastAPI Routing`, `Pydantic Schemas`, `Offset/Limit Pagination`) and `absent_abstractions` (e.g. `NO Streaming`, `NO Rate-Limiting Middleware`, `NO Redis`, `NO Elasticsearch`).
+2. **Grounding Filter & Negative Constraints (`EvidenceGroundingChain`)**:
+   - LLM prompts and mock fallbacks are explicitly forbidden from recommending any items listed in `absent_abstractions`.
+   - Upgraded tasks MUST strictly reuse existing repository code conventions (e.g. pagination or model validation).
+3. **Artificial Complexity Detector (`SignalEvaluationService`)**:
+   - If a proposed task introduces ungrounded architectural bloat (e.g. requiring Redis + Elasticsearch on a simple app), Redline flags it with an **Artificial Complexity Warning** and caps the score.
+4. **Candidate Inspection Trajectories (`CandidateSimulations.tsx`)**:
+   - Displays file-level inspection steps (`files_inspected`), reused conventions (`abstractions_reused`), and edge cases tested (`edge_cases_tested`) comparing **AI-Dependent** vs **Strong AI-Native** candidate profiles.
+
+### Key Learnings
+- **Empirical Grounding over Hallucinated Upgrades**: Every recommendation must trace directly back to concrete code evidence in the target repository.
+- **Artificial Complexity Penalties**: More complexity does NOT equal higher engineering signal. Adding ungrounded architectural requirements lowers assessment credibility.
