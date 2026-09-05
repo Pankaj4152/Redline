@@ -4,13 +4,23 @@
 
 ---
 
+## 🔍 Repository Evidence Grounding & Anti-Hallucination Policy
+
+> **Core Product Principle**: Every assessment health score, diagnostic metric, and task recommendation MUST be strictly grounded in empirical evidence extracted directly from the repository code structure. Redline must NEVER hallucinate unsupported architectural constraints (e.g. recommending non-existent rate-limiting middleware or streaming abstractions).
+
+1. **Repository Fact Extraction**: The pipeline first constructs an explicit Repository Fact Matrix (Detected vs Absent abstractions/patterns).
+2. **Evidence → Recommendation Chain**: Upgraded task suggestions are validated against the Fact Matrix. If an abstraction does NOT exist in the repository (e.g. streaming, rate-limiting, Redis caching), Redline will NOT recommend requiring it unless explicitly flagging it as an unsupported assumption.
+3. **Artificial Complexity Penalty**: Tasks that introduce artificial, ungrounded complexity (e.g. adding microservices or distributed locks to a simple monolith) are flagged with **High Complexity / Low-to-Medium Signal**, discouraging bloated assessments.
+4. **Transparent Scoring Rationale**: Every metric explicitly links to specific repository file paths, symbol signatures, and candidate inspection trajectories.
+
+---
+
 ## 📊 Diagnostic Nature & Non-Statistical Disclaimer
 
-> **Core Product Principle**: The Assessment Health Score is a **heuristic diagnostic**, NOT a scientifically validated or statistically predictive measurement.
+> **Core Principle**: The Assessment Health Score is a **heuristic diagnostic**, NOT a scientifically validated or statistically predictive measurement.
 
 1. **Evidence First**: The system prioritizes concrete, repository-specific qualitative evidence and architectural reasoning over arbitrary numeric metrics.
-2. **Transparent Scoring Rationale**: Every sub-score and dimension (AI Solvability, Reasoning Signal, Repo Depth, etc.) must explicitly link to the specific repository structures, file paths, and simulation evidence that contributed to it.
-3. **No Validity Claims**: Redline makes **no claims of statistical validity or objective candidate performance prediction**. It functions purely as an assessment-design heuristic and red-teaming tool for engineering managers and interview designers.
+2. **No Validity Claims**: Redline makes **no claims of statistical validity or objective candidate performance prediction**. It functions purely as an assessment-design heuristic tool for engineering managers and interview designers.
 
 ---
 
@@ -18,16 +28,10 @@
 
 > **Core Principle**: All GitHub repository contents must be treated strictly as **untrusted DATA**, never as system or operational instructions.
 
-The system enforces the following security boundaries across all components:
-1. **Instruction Boundary Isolation**: System prompts explicitly treat repository code, READMEs, docs, comments, and config files as inert passive data. Content inside repositories must never override Redline's system instructions or evaluation prompt boundaries (Prompt Injection Protection).
+1. **Instruction Boundary Isolation**: System prompts explicitly treat repository code, READMEs, docs, comments, and config files as inert passive data. Content inside repositories must never override Redline's system instructions (Prompt Injection Protection).
 2. **Zero Code Execution**: Redline performs static code structure & AST analysis only. Arbitrary repository code, scripts, build steps, or tests are **never executed**.
-3. **Path Traversal Prevention**: Strict canonical path validation on cloned/scanned directory paths prevents reading files outside the isolated repository temporary folder.
-4. **Clone & Scan Guardrails**:
-   - Limit clone depth (`--depth 1`).
-   - Repository size limit enforcement (< 50 MB total context scan limit).
-   - Strict URL schema and format validation (allow only valid `https://github.com/org/repo` patterns).
-5. **File Type Whitelisting**: Analyzes source code files only (`.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.go`, `.java`, `.rs`, `.cpp`, `.c`, `.h`, `.cs`, `.json`, `.md`).
-6. **Secret Exclusion & Redaction**: Automatically excludes sensitive file patterns (`.env`, `.env.*`, `*.pem`, `*.key`, `credentials`, `id_rsa`, `secrets.*`) and strips detected API key string patterns prior to prompt aggregation.
+3. **Path Traversal & Scan Guardrails**: Strict canonical path validation (`os.path.realpath`), `--depth 1` clones, size caps (<50MB), and file whitelisting (`.py`, `.ts`, `.js`, etc.).
+4. **Secret Exclusion & Redaction**: Excludes sensitive files (`.env*`, `*.pem`, `credentials`) and redacts API key patterns.
 
 ---
 
@@ -46,17 +50,17 @@ Build a functional proof-of-concept system where a user inputs a **GitHub Reposi
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Phase 2: Secure Repository Context Extractor            │
+│ Phase 2: Secure Repo Context & Fact Matrix Extractor    │
 └───────────────────────────┬─────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Phase 3: Assessment Analysis & Strategy Simulation Engine│
+│ Phase 3: Evidence-Grounded Simulator Engine             │
 └───────────────────────────┬─────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Phase 4: Signal Scoring & Task Recommendation Generator │
+│ Phase 4: Grounded Signal Evaluator & Upgrade Generator │
 └───────────────────────────┬─────────────────────────────┘
                             │
                             ▼
@@ -75,85 +79,90 @@ Build a functional proof-of-concept system where a user inputs a **GitHub Reposi
 ## 📋 Tasks Breakdown & Dependencies
 
 ### Phase 1: Project Setup & Core Models
-- [ ] **Task 1.1: Environment & Project Bootstrap**
+- [x] **Task 1.1: Environment & Project Bootstrap**
   - Setup Python backend directory structure (`backend/app/{api,core,services,models}`) and Frontend Vite React TypeScript application (`frontend/`).
   - Configure `.env` management (Gemini API Key, CORS origins, file size limits).
   - *Dependencies*: None
   - *Acceptance Criteria*: Backend initializes with FastAPI (`/health` returns status OK); Frontend compiles with clean UI shell.
 
-- [ ] **Task 1.2: Pydantic Data Contracts & Validation Schemas**
-  - Define input schemas (`AnalysisRequest`, `RepoSource`) with strict URL regex validation for GitHub repositories.
-  - Define output schemas (`RepoContextSummary`, `SimulationProfileResult`, `SignalHealthReport`, `TaskRecommendation`, `FullAssessmentResult`). Include evidence linkage fields for each metric score.
+- [x] **Task 1.2: Pydantic Data Contracts & Validation Schemas**
+  - Define input schemas (`AnalysisRequest`, `RepoSource`).
+  - Define schema for `RepositoryFactMatrix` (Observed abstractions vs Absent abstractions).
+  - Define `EvidenceGroundingChain` schema (Repo Facts → Task Implications → Allowed/Forbidden Upgrades → Confidence score).
+  - Define `CandidateInspectionTrajectory` (Files inspected, abstractions reused, edge-case tests written per profile).
   - *Dependencies*: Task 1.1
-  - *Acceptance Criteria*: Invalid URLs or malformed payloads fail Pydantic validation cleanly.
+  - *Acceptance Criteria*: All Pydantic models validate sample payload objects cleanly.
 
 ---
 
-### Phase 2: Secure Repository Analyzer & Context Extractor
-- [ ] **Task 2.1: Secure Ingestion, Path Sanitation & AST File Parsing**
-  - Build helper to clone GitHub repos securely (`--depth 1`, target directory path traversal protection via `os.path.realpath` checks).
-  - Implement file extension whitelisting (`.py`, `.ts`, `.js`, etc.) and explicit exclusion of secret files (`.env*`, `*.pem`, `credentials`, etc.).
-  - Ensure **zero code execution** during file traversal.
-  - Implement language-specific lightweight AST / structure extractors.
+### Phase 2: Secure Repository Analyzer & Fact Extractor
+- [x] **Task 2.1: Secure Ingestion, Path Sanitation & AST File Parsing**
+  - Build helper to clone GitHub repos securely (`--depth 1`, path traversal protection via `os.path.realpath` / `is_subpath`, `--` argument separator).
+  - Implement file extension whitelisting and secret file exclusions (`.env*`, `*.pem`, etc.).
+  - **Zero code execution** during file traversal.
+  - Implement language-specific AST / symbol extractors (Python AST + JS/TS regex for interfaces, types, classes, default exports).
   - *Dependencies*: Task 1.2
-  - *Acceptance Criteria*: Correctly constructs file tree map and extracts API routes while ignoring secret files and binary assets.
+  - *Acceptance Criteria*: Extracts AST symbols, imports, classes, and API routes cleanly.
 
-- [ ] **Task 2.2: Context Summarizer, Prompt Framing & Token Budgeter**
-  - Implement token-budgeting logic to build concise LLM context.
-  - Wrap repository snippets in explicit DATA framing delimiters (e.g. `<untrusted_repository_data>`) with system instructions stating repository contents are passive data only.
+- [x] **Task 2.2: Repository Fact Matrix Extractor & Token Budgeter**
+  - Analyze extracted AST data to compile `RepositoryFactMatrix`:
+    - List active abstractions (e.g. SQLModel, Pydantic, FastAPI pagination, custom Auth).
+    - List explicitly absent abstractions (e.g. NO streaming helpers, NO rate limiting middleware, NO Redis).
+  - Wrap repository snippets in untrusted data delimiters (`<untrusted_repository_data>`).
   - *Dependencies*: Task 2.1
-  - *Acceptance Criteria*: Context payload stays under target token budget and isolates untrusted repo code from system prompts.
+  - *Acceptance Criteria*: Generates an accurate, empirical Fact Matrix for target repositories.
 
 ---
 
-### Phase 3: Assessment Analyzer & Strategy Simulator
-- [ ] **Task 3.1: Task Impact Analyzer**
-  - Implement LLM prompt pipeline to map the candidate task against repo context, determining impacted modules, touched files, and architectural depth required.
+### Phase 3: Assessment Analyzer & Trajectory Simulator
+- [x] **Task 3.1: Task Impact & Fact Matching Analyzer**
+  - Map the candidate task against the `RepositoryFactMatrix` to identify existing code patterns the task touches vs new patterns it requires.
   - *Dependencies*: Task 2.2
-  - *Acceptance Criteria*: Returns structured JSON listing affected modules and potential side effects.
+  - *Acceptance Criteria*: Pinpoints touched modules and highlights any missing abstractions required by the task.
 
-- [ ] **Task 3.2: Strategy Simulator (3 Candidate Profiles)**
-  - Implement LLM-based structured simulation prompts for:
-    1. **AI-Dependent Engineer**: Broad delegation, zero context verification, happy-path reliance.
-    2. **Naive AI-Assisted Engineer**: Partial context inspection, superficial testing, misses non-obvious failure modes.
-    3. **Strong AI-Native Engineer**: Deep architectural context inspection, targeted AI prompts, rigorous edge-case verification.
+- [x] **Task 3.2: Differentiated Candidate Strategy Simulator**
+  - Implement LLM simulation prompts generating detailed inspection trajectories:
+    1. **AI-Dependent Engineer**: Inspects minimal files (e.g. 1 file), relies on default AI generation, misses existing repository abstractions/contracts.
+    2. **Naive AI-Assisted Engineer**: Inspects route handlers, tests happy-path, misses non-obvious failure modes.
+    3. **Strong AI-Native Engineer**: Inspects full route + model + CRUD layer, reuses existing repository abstractions, explicitly writes edge-case tests.
   - *Dependencies*: Task 3.1
-  - *Acceptance Criteria*: Produces distinct simulation steps, probable bugs/misses, and execution likelihood for each profile.
+  - *Acceptance Criteria*: Simulator outputs granular, file-level inspection trajectories for each candidate profile.
 
 ---
 
-### Phase 4: Transparent Diagnostic Evaluator & Task Upgrade Generator
-- [ ] **Task 4.1: Heuristic Assessment Signal Evaluator**
-  - Evaluate 5 core metrics: AI Solvability, Reasoning Signal, Repo Depth, Architectural Judgment, Verification Requirement.
-  - Ensure each score includes mandatory **contributing evidence quotes/references** explaining *why* the score was assigned.
-  - Explicitly frame results as heuristic diagnostic feedback.
+### Phase 4: Grounded Diagnostic Evaluator & Task Upgrade Engine
+- [x] **Task 4.1: Evidence-Grounded Signal Evaluator**
+  - Evaluate 5 core metrics with mandatory evidence linkages.
+  - Detect **Artificial Complexity**: If a task introduces technologies/constraints ungrounded in the repo (e.g., Redis + Elasticsearch on a simple app), flag as **High Complexity / Low-Medium Signal**.
   - *Dependencies*: Task 3.2
-  - *Acceptance Criteria*: Computes transparent scores backed by specific repository file links and simulation arguments.
+  - *Acceptance Criteria*: Accurately scores task signal while penalizing ungrounded artificial complexity.
 
-- [ ] **Task 4.2: Recommendation & Upgrade Generator**
-  - Generate upgraded task descriptions with explicit constraints (e.g. streaming memory limits, error handling contracts, interface reuse requirements) that prevent lazy AI delegation.
+- [x] **Task 4.2: Evidence-Grounded Task Upgrade Generator**
+  - Generate task recommendations constrained strictly by the `RepositoryFactMatrix`.
+  - Validate upgrade suggestions against the "Forbidden Recommendations" list.
+  - Output explicit `EvidenceGroundingChain` (Repository Facts → Task Implications → Recommendation Rationale).
   - *Dependencies*: Task 4.1
-  - *Acceptance Criteria*: Outputs original vs upgraded task with rationale and risk mitigation details.
+  - *Acceptance Criteria*: Upgraded tasks leverage *actual* existing codebase conventions (e.g. existing pagination helpers) and never hallucinate non-existent middleware or architecture.
 
 ---
 
 ### Phase 5: API Layer & Async Execution
-- [ ] **Task 5.1: REST Endpoints & Async Pipeline Orchestrator**
+- [x] **Task 5.1: REST Endpoints & Async Pipeline Orchestrator**
   - Implement `/api/v1/analyze` (POST) to trigger background analysis pipeline.
-  - Implement `/api/v1/analysis/{job_id}` (GET) for status polling or WebSockets for real-time progress updates.
+  - Implement `/api/v1/health` (GET) for system health check.
   - *Dependencies*: Task 4.2
-  - *Acceptance Criteria*: End-to-end API execution completes in < 30 seconds for typical sample repositories.
+  - *Acceptance Criteria*: Pipeline execution returns complete `EvidenceGroundingChain` and candidate trajectories in < 30 seconds.
 
 ---
 
 ### Phase 6: Frontend Visual Dashboard
-- [ ] **Task 6.1: Dashboard UI Components & Assessment Form**
+- [x] **Task 6.1: Visual Dashboard & Grounded Evidence UI**
   - Build GitHub Repo input field, task description text area, and sample preset loader.
-  - Build Diagnostic Health Score Card (Radar/Bar charts, evidence breakdown accordions, diagnostic disclaimer badge).
-  - Build Candidate Profile Simulator comparison view.
-  - Build Task Upgrade comparison card (Original vs Recommended Task with copy action).
+  - Build **Repository Evidence & Grounding Card** (Observed Facts vs Task Implications).
+  - Build **Candidate Inspection Trajectory Viewer** (comparing file-by-file inspection steps of AI-Dependent vs Strong AI-Native engineers).
+  - Build **Evidence-Backed Task Upgrade View** with Grounding Confidence rating.
   - *Dependencies*: Task 5.1
-  - *Acceptance Criteria*: Responsive, sleek dark-mode interface with clear visual hierarchy, transparent score evidence linkages, and working demo presets.
+  - *Acceptance Criteria*: Responsive dark-mode dashboard displaying transparent repository evidence and inspection trajectories.
 
 ---
 
@@ -161,13 +170,12 @@ Build a functional proof-of-concept system where a user inputs a **GitHub Reposi
 
 | Edge Case | Potential Impact | Mitigation Strategy |
 | :--- | :--- | :--- |
-| **User Misinterpreting Score as Scientific Truth** | Over-reliance on numerical metric | UI disclaimer badge clearly marking scores as "Heuristic Diagnostic Feedback", emphasizing qualitative evidence. |
+| **LLM Hallucinating Non-Existent Repo Constraints** | Invalid / misleading task recommendation | Enforce Repository Fact Matrix verification step prior to outputting recommendations. Reject ungrounded abstractions. |
+| **Artificial Task Complexity (e.g., Microservices on Monolith)** | Misleading high score | Explicit Artificial Complexity detector that penalizes tasks introducing ungrounded architectural bloat. |
+| **User Misinterpreting Score as Scientific Truth** | Over-reliance on numerical metric | UI disclaimer badge marking scores as "Heuristic Diagnostic Feedback", emphasizing qualitative evidence. |
 | **Prompt Injection in Repo (README/Code)** | LLM instruction hijacking | Strict separation of System instructions and Untrusted Data blocks in prompt templates. |
 | **Secrets in Repo (`.env`, keys)** | Sensitive data leaked to LLM | Mandatory regex filter & filename exclusion list before string context aggregation. |
 | **Malicious Path Traversal (`../../`)** | File system exposure | Validate absolute path canonicalization (`realpath`) within sandboxed temp dir. |
-| **Large Repository (>10k files)** | LLM context window overflow, slow processing | Strict file whitelist, depth 1 clone, ignore vendor/build dirs, symbol extraction only. |
-| **Invalid / Private Repo URL** | Pipeline failure / command injection | URL schema validation (HTTPS only, github.com regex), no shell parameter injection in git commands. |
-| **Gemini API Rate Limiting / Timeout** | Pipeline execution failure | Implement retries with exponential backoff, prompt response caching for repo context summaries. |
 
 ---
 
@@ -175,16 +183,14 @@ Build a functional proof-of-concept system where a user inputs a **GitHub Reposi
 
 ### Automated Tests
 - **Backend Security & Unit Tests (`pytest`)**:
+  - Test `RepositoryFactMatrix` extractor on mock repos with and without specific abstractions (e.g., verify it correctly identifies absence of rate-limiting middleware).
+  - Test anti-hallucination guardrail on recommendation generator.
   - Test evidence-attribution mapping for all calculated heuristic metrics.
-  - Test URL sanitizer and validator against invalid/malicious GitHub URLs.
-  - Test secret exclusion filter on repositories containing `.env`, `.pem`, and dummy API keys.
-  - Test path traversal protection helper against synthetic `../../` path inputs.
-  - Test repository tree crawler and AST parser on sample mock repos.
-  - Test Pydantic schema validation for LLM structured output parsing.
+  - Test URL sanitizer, path traversal protection, and secret exclusion filters.
 
 ### Manual Verification
 - Test with 3 real GitHub repositories:
-  1. *Small Python FastAPI project* (Simple endpoint modification task vs complex async stream task).
-  2. *TypeScript/Node.js backend* (Database migration/middleware task).
-  3. *Monorepo / Multi-module app* (Cross-module dependency refactoring task).
-- Validate UI rendering, transparent evidence linkage display, and real-time step progress feedback on the frontend dashboard.
+  1. *Small Python FastAPI project* (Verify recommendation uses existing SQLModel pagination rather than hallucinating streaming/rate-limiting).
+  2. *TypeScript/Node.js backend*.
+  3. *Monorepo / Multi-module app*.
+- Validate UI rendering of the Evidence Grounding Card and Candidate Inspection Trajectories.
