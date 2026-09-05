@@ -147,3 +147,28 @@ Before Redline can simulate candidate profile strategies or evaluate assessment 
 ### What I Should Know
 - Gemini API native JSON schema enforcement guarantees that LLMs return JSON matching Pydantic class fields directly.
 - Mapping task prompts against static AST symbol lists allows Redline to detect potential unvalidated side effects (e.g. unbounded RAM usage or bypassing rate limiters) before running candidate simulations.
+
+---
+
+## Step 3.2 & 4.1 — Candidate Strategy Simulator & Heuristic Signal Evaluator
+
+### Concept
+Simulated Candidate Solving Profiles & Qualitative Evidence-Backed Metric Scoring.
+
+### Why Redline Uses It
+Redline evaluates whether a task exposes true engineering signal by comparing how 3 candidate profiles attempt the task (AI-Dependent vs Naive AI-Assisted vs Strong AI-Native), and scoring 5 core health dimensions (`ai_solvability`, `reasoning_signal`, `repo_depth`, `architectural_judgment`, `verification_requirement`).
+
+### How It Works in Our Project
+1. **`StrategySimulatorService`**: Generates structured LLM simulations comparing delegation levels (90% vs 70% vs 40%), likelihood of success, reasoning summaries, and missed failure mode risks across candidate profiles.
+2. **`SignalEvaluationService`**: Computes qualitative heuristic scores (0-100) across all 5 dimensions and calculates an `overall_health_score` (weighted signal index) and qualitative `verdict`.
+3. **Mandatory Evidence Linkage**: Mandates non-empty `contributing_evidence` string lists on every single score object.
+
+### Important Engineering Decisions
+- **Decision**: Represent candidate behavior via structured LLM reasoning simulation (`SimulationProfileResult`) rather than running autonomous coding agents inside Docker containers.
+- **Why**: Autonomous agent execution takes >5 minutes and requires complex container orchestration. Structured LLM simulation produces instant, deterministic results in <2 seconds.
+- **Alternative**: Dockerized execution of autonomous coding agents.
+- **Tradeoff**: LLM reasoning simulation is an approximation, but provides instant feedback and fits Redline's proof-of-concept latency goals.
+
+### What I Should Know
+- Qualitative evidence linkage ensures Redline never presents arbitrary numbers without explicit repository-backed reasoning.
+- Weighted health scoring indexes enable Redline to classify tasks as `Weak Signal - Highly AI-Delegable` vs `Strong Signal - High Architectural Judgment Demanded`.
