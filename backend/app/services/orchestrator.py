@@ -1,0 +1,70 @@
+import uuid
+from app.models.schemas import AnalysisRequest, FullAssessmentResult
+from app.services.repo_analyzer import repo_analyzer_service
+from app.services.task_impact import task_impact_service
+from app.services.strategy_simulator import strategy_simulator_service
+from app.services.signal_evaluator import signal_evaluation_service
+from app.services.upgrade_generator import upgrade_generator_service
+
+
+class AnalysisOrchestratorService:
+    """
+    Master Pipe-and-Filter Orchestrator Service chaining all analytical components:
+    RepoAnalyzer -> ContextBudgeter -> TaskImpact -> StrategySimulator -> SignalEvaluator -> UpgradeGenerator.
+    """
+
+    def run_analysis_pipeline(self, request: AnalysisRequest) -> FullAssessmentResult:
+        """
+        Executes the end-to-end Redline evaluation pipeline for a given AnalysisRequest.
+        """
+        job_id = f"job_{uuid.uuid4().hex[:10]}"
+
+        # Step 1: Secure Repository Ingestion & Static AST Symbol Extraction
+        repo_summary = repo_analyzer_service.analyze_repository(
+            repo_url=request.repo_url,
+            branch=request.branch,
+            cleanup=True
+        )
+
+        # Step 2: Assessment Task Impact Mapping (Blast Radius & touched modules)
+        task_impact = task_impact_service.analyze_task_impact(
+            summary=repo_summary,
+            task_description=request.task_description
+        )
+
+        # Step 3: Candidate Strategy Simulation across 3 profiles
+        simulations = strategy_simulator_service.simulate_strategies(
+            summary=repo_summary,
+            impact=task_impact,
+            task_description=request.task_description
+        )
+
+        # Step 4: Diagnostic Signal Health Scoring & Evidence Linkage
+        signal_report = signal_evaluation_service.evaluate_signal_health(
+            summary=repo_summary,
+            impact=task_impact,
+            simulations=simulations,
+            task_description=request.task_description
+        )
+
+        # Step 5: Recommendation & Task Upgrade Generation
+        recommendation = upgrade_generator_service.generate_task_upgrade(
+            summary=repo_summary,
+            impact=task_impact,
+            simulations=simulations,
+            report=signal_report,
+            task_description=request.task_description
+        )
+
+        # Assemble & Return Complete Result Data Model
+        return FullAssessmentResult(
+            job_id=job_id,
+            status="completed",
+            repo_summary=repo_summary,
+            report=signal_report,
+            simulations=simulations,
+            recommendations=recommendation
+        )
+
+
+orchestrator_service = AnalysisOrchestratorService()
