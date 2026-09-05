@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     Application Settings loaded from environment variables and .env file.
     Validates configuration types automatically using Pydantic.
     """
+    BACKEND_DIR: Path = BACKEND_DIR
     APP_NAME: str = "Redline Backend"
     APP_VERSION: str = "0.1.0"
     APP_DESCRIPTION: str = "Redline - AI-Powered Pre-Flight Testing & Red-Teaming Tool for AI-Native Coding Assessments"

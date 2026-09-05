@@ -70,3 +70,29 @@ LLM outputs are inherently probabilistic and dynamic. Without a formal data cont
 ### What I Should Know
 - Pydantic models serve a dual purpose in Redline: **API payload validation** for HTTP handlers AND **structured output schemas** for Gemini API calls.
 - Enforcing `min_length=1` on `contributing_evidence` directly bakes Redline's core product principle (*no arbitrary scores without qualitative evidence*) into our software architecture.
+
+---
+
+## Step 2.1 — Secure Repository Context Extractor & Static AST Parser
+
+### Concept
+Untrusted Data Boundary, Canonical Path Sanitation & Zero-Execution AST Parsing.
+
+### Why Redline Uses It
+Third-party GitHub repositories submitted by users or candidates are **UNTRUSTED DATA**. They could contain malicious directory traversal paths (`../../etc/passwd`), embedded secrets (`.env`), or executable setup scripts. Redline must safely ingest code, sanitize paths, filter secrets, and extract code symbols without executing any third-party code.
+
+### How It Works in Our Project
+1. **Shallow Cloning (`git clone --depth 1`)**: Fetches only the latest commit using a subprocess list (`shell=False` to prevent shell parameter injection).
+2. **Canonical Path Check (`is_safe_path`)**: Verifies via `os.path.realpath` that every traversed file strictly resides within the target sandbox directory, blocking path traversal attacks.
+3. **Secret & Binary Filter**: Excludes secret patterns (`.env*`, `*.pem`, `credentials`) and restricts analysis to whitelisted source extensions (`.py`, `.ts`, `.js`, etc.).
+4. **Zero-Execution AST Parsing**: Uses Python's native `ast` module to statically inspect syntax trees (`ast.ClassDef`, `ast.FunctionDef`, `@app.get` route decorators) without running `import`, `exec()`, or setup scripts.
+
+### Important Engineering Decisions
+- **Decision**: Use static AST parsing (Python `ast` module + regex symbol matching) instead of running setup scripts or importing modules.
+- **Why**: Enforces Redline's **Zero Code Execution Rule**. Importing untrusted Python modules or executing setup scripts introduces Remote Code Execution (RCE) vulnerabilities.
+- **Alternative**: Running `importlib.import_module()` or executing `pytest --collect-only` inside a container.
+- **Tradeoff**: Static AST analysis cannot inspect dynamically generated runtime routes or metaprogrammed classes, but provides 100% security and near-instant parsing (< 1 second).
+
+### What I Should Know
+- Always use `shell=False` when calling `subprocess.run` with untrusted string inputs to prevent shell command injection.
+- `os.path.realpath` resolves symlinks and `../` paths to absolute canonical paths, making it the industry standard for preventing Directory Traversal vulnerabilities.

@@ -1,1 +1,6 @@
-# Services package - Business logic, repository analysis & simulation pipelines
+from app.services.repo_analyzer import RepoAnalyzerService, repo_analyzer_service
+
+__all__ = [
+    "RepoAnalyzerService",
+    "repo_analyzer_service",
+]
