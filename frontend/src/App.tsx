@@ -17,7 +17,8 @@ export function App() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/analyze', {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiBaseUrl}/api/v1/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
