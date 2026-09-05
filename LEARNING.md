@@ -225,3 +225,32 @@ To turn isolated analytical micro-services into a functional web product, Redlin
 ### What I Should Know
 - The Pipe-and-Filter pattern breaks complex multi-stage data processing into decoupled, testable transform functions.
 - End-to-end integration tests using `TestClient` verify that request validation, pipeline execution, and JSON output serialization work seamlessly together.
+
+---
+
+## Step 6.1 — Frontend Visual Dashboard & Interactive UI
+
+### Concept
+Reactive Single-Page Application (SPA) & Glassmorphism Design System.
+
+### Why Redline Uses It
+A visual web dashboard transforms raw backend JSON outputs into an intuitive, evidence-driven red-teaming tool for engineering managers and interview designers.
+
+### How It Works in Our Project
+1. **React 18 + Vite + TypeScript**: Component-driven architecture using strongly-typed API models (`schemas.ts`).
+2. **Components**:
+   - `AssessmentForm`: Input form with Preset Loader buttons.
+   - `HealthScoreCard`: Overall health badge, 5 metric bars, and expandable evidence accordions.
+   - `CandidateSimulations`: 3-column side-by-side strategy comparison cards.
+   - `TaskUpgradeCard`: Side-by-side prompt upgrade view with 1-click copy action.
+3. **Vanilla CSS Design System (`index.css`)**: Glassmorphism cards (`backdrop-filter`), CSS variables (`--bg-dark`, `--accent-primary`), glowing borders, and responsive grid layouts.
+
+### Important Engineering Decisions
+- **Decision**: Use Vite + React 18 + Vanilla CSS variables instead of heavy UI component libraries or Tailwind.
+- **Why**: Provides complete design freedom for custom glassmorphism styling, zero CSS bundle overhead (<150KB total bundle), and fast compilation (<3.5s).
+- **Alternative**: Material UI or Tailwind CSS.
+- **Tradeoff**: Requires writing custom CSS utility classes, but yields a unique developer-tool aesthetic and optimal loading performance.
+
+### What I Should Know
+- CSS Custom Properties (`var(--...)`) enable flexible theme variables without runtime CSS-in-JS overhead.
+- Interactive evidence accordions allow users to drill down into the qualitative evidence backing each score.
