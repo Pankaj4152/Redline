@@ -3,6 +3,7 @@ from app.services.context_budgeter import ContextBudgetService, context_budget_s
 from app.services.task_impact import TaskImpactService, task_impact_service
 from app.services.strategy_simulator import StrategySimulatorService, strategy_simulator_service
 from app.services.signal_evaluator import SignalEvaluationService, signal_evaluation_service
+from app.services.upgrade_generator import UpgradeGeneratorService, upgrade_generator_service
 
 __all__ = [
     "RepoAnalyzerService",
@@ -15,4 +16,6 @@ __all__ = [
     "strategy_simulator_service",
     "SignalEvaluationService",
     "signal_evaluation_service",
+    "UpgradeGeneratorService",
+    "upgrade_generator_service",
 ]
